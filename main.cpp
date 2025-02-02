@@ -7,9 +7,6 @@
 #include <SDL3/SDL_main.h>
 
 
-constexpr SDL_FColor YELLOW = {1.0f, 1.0f, 0.0f, SDL_ALPHA_OPAQUE_FLOAT};
-
-
 static float rand_float() {
     return static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX);
 }
@@ -47,18 +44,6 @@ constexpr SDL_FPoint CIRCLE_VECTORS[NUM_CIRCLE_VECTORS] = {
     {+0.923879533f, -0.382683432f}, {+0.965925826f, -0.258819045f},
     {+0.991444861f, -0.130526192f}, {+1.000000000f, +0.000000000f},
 };
-
-
-static void
-construct_circle_points(SDL_FPoint *points, SDL_FPoint center, float radius) {
-    for (int i = 0; i < NUM_CIRCLE_VECTORS; i++) {
-        const SDL_FPoint circle_vector = CIRCLE_VECTORS[i];
-        points[i] = {
-            std::fmaf(circle_vector.x, radius, center.x),
-            std::fmaf(circle_vector.y, radius, center.y),
-        };
-    }
-}
 
 
 static void construct_circle_vertices(
