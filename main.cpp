@@ -4,6 +4,7 @@
 #include <cstdlib>
 
 #define SDL_MAIN_USE_CALLBACKS 1
+#include <SDL3/SDL_log.h>
 #include <SDL3/SDL_main.h>
 #include <SDL3/SDL_render.h>
 #include <SDL3/SDL_time.h>
@@ -66,7 +67,6 @@ static void construct_circle_vertices(
     v.color = color;
     w.position = {center.x + radius, center.y};
     w.color = color;
-    int k = 0;
     for (int i = 0; i < NUM_CIRCLE_VECTORS; i++) {
         const SDL_FPoint circle_vector = CIRCLE_VECTORS[i];
         v.position = w.position;
@@ -74,33 +74,114 @@ static void construct_circle_vertices(
             std::fmaf(circle_vector.x, radius, center.x),
             std::fmaf(circle_vector.y, radius, center.y),
         };
-        vertices[k++] = c;
-        vertices[k++] = v;
-        vertices[k++] = w;
+        vertices[3 * i + 0] = c;
+        vertices[3 * i + 1] = v;
+        vertices[3 * i + 2] = w;
     }
 }
 
-
-constexpr int INITIAL_WINDOW_WIDTH = 1920;
-constexpr int INITIAL_WINDOW_HEIGHT = 1080;
-static SDL_Window *window = nullptr;
-static SDL_Renderer *renderer = nullptr;
-static SDL_Time last_draw_time = 0;
-static double angle = 0.0;
-static double angular_velocity = 0.0;
 
 using real_t = double;
 constexpr real_t ZERO = static_cast<real_t>(0);
 constexpr real_t ONE = static_cast<real_t>(1);
 
+
+static void compute_coulomb_gradient(
+    real_t *gradient, const real_t *points, int num_points
+) {
+    using std::sqrt;
+    for (int i = 0; i < 3 * num_points; i++) { gradient[i] = ZERO; }
+    for (int j = 1; j < num_points; j++) {
+        const real_t xj = points[3 * j + 0];
+        const real_t yj = points[3 * j + 1];
+        const real_t zj = points[3 * j + 2];
+        for (int i = 0; i < j; i++) {
+            const real_t xi = points[3 * i + 0];
+            const real_t yi = points[3 * i + 1];
+            const real_t zi = points[3 * i + 2];
+            const real_t dx = xi - xj;
+            const real_t dy = yi - yj;
+            const real_t dz = zi - zj;
+            const real_t norm_squared = dx * dx + dy * dy + dz * dz;
+            const real_t inv_norm_cubed =
+                ONE / (norm_squared * sqrt(norm_squared));
+            const real_t fx = dx * inv_norm_cubed;
+            const real_t fy = dy * inv_norm_cubed;
+            const real_t fz = dz * inv_norm_cubed;
+            gradient[3 * i + 0] -= fx;
+            gradient[3 * i + 1] -= fy;
+            gradient[3 * i + 2] -= fz;
+            gradient[3 * j + 0] += fx;
+            gradient[3 * j + 1] += fy;
+            gradient[3 * j + 2] += fz;
+        }
+    }
+}
+
+
+static void move_points(
+    real_t *points, const real_t *gradient, real_t step_size, int num_points
+) {
+    using std::sqrt;
+    for (int i = 0; i < num_points; i++) {
+        const real_t x = points[3 * i + 0] - step_size * gradient[3 * i + 0];
+        const real_t y = points[3 * i + 1] - step_size * gradient[3 * i + 1];
+        const real_t z = points[3 * i + 2] - step_size * gradient[3 * i + 2];
+        const real_t norm_squared = x * x + y * y + z * z;
+        const real_t inv_norm = ONE / sqrt(norm_squared);
+        points[3 * i + 0] = x * inv_norm;
+        points[3 * i + 1] = y * inv_norm;
+        points[3 * i + 2] = z * inv_norm;
+    }
+}
+
+
+static void
+quantize_points(double *points, const real_t *precise_points, int num_points) {
+    for (int i = 0; i < num_points; i++) {
+        points[3 * i + 0] = static_cast<double>(precise_points[3 * i + 0]);
+        points[3 * i + 1] = static_cast<double>(precise_points[3 * i + 1]);
+        points[3 * i + 2] = static_cast<double>(precise_points[3 * i + 2]);
+    }
+}
+
+
+static void
+quantize_forces(double *forces, const real_t *gradient, int num_points) {
+    for (int i = 0; i < num_points; i++) {
+        forces[3 * i + 0] = -static_cast<double>(gradient[3 * i + 0]);
+        forces[3 * i + 1] = -static_cast<double>(gradient[3 * i + 1]);
+        forces[3 * i + 2] = -static_cast<double>(gradient[3 * i + 2]);
+    }
+}
+
+
+namespace GlobalVariables {
+
+constexpr int INITIAL_WINDOW_WIDTH = 1920;
+constexpr int INITIAL_WINDOW_HEIGHT = 1080;
+
 static int num_points = 0;
-static real_t *points = nullptr;
-static real_t *forces = nullptr;
-static SDL_FColor *colors = nullptr;
-static SDL_Vertex *vertices = nullptr;
+static SDL_Time last_draw_time = 0;
+static double angle = 0.0;
+static double angular_velocity = 0.0;
+
+static SDL_Window *window = nullptr;
+static SDL_Renderer *renderer = nullptr;
+static real_t *optimizer_points = nullptr;
+static real_t *optimizer_gradient = nullptr;
+static SDL_RWLock *renderer_lock = nullptr;
+static double *renderer_points = nullptr;
+static double *renderer_forces = nullptr;
+static SDL_FColor *renderer_colors = nullptr;
+static SDL_Vertex *renderer_vertices = nullptr;
+
+} // namespace GlobalVariables
 
 
 SDL_AppResult SDL_AppInit(void **, int, char **) {
+
+    using namespace GlobalVariables;
 
     window = SDL_CreateWindow(
         "Rieszolve",
@@ -109,52 +190,81 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
         SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_RESIZABLE
     );
     if (!window) {
-        std::printf("Failed to create window: %s\n", SDL_GetError());
+        SDL_LogCritical(
+            SDL_LOG_CATEGORY_ERROR,
+            "Failed to create window: %s\n",
+            SDL_GetError()
+        );
         return SDL_APP_FAILURE;
     }
 
     renderer = SDL_CreateRenderer(window, nullptr);
     if (!renderer) {
-        std::printf("Failed to create renderer: %s\n", SDL_GetError());
+        SDL_LogCritical(
+            SDL_LOG_CATEGORY_ERROR,
+            "Failed to create renderer: %s\n",
+            SDL_GetError()
+        );
         return SDL_APP_FAILURE;
     }
 
     num_points = 2000;
 
-    points = static_cast<real_t *>(
+    optimizer_points = static_cast<real_t *>(
         std::malloc(3 * static_cast<std::size_t>(num_points) * sizeof(real_t))
     );
-    if (!points) {
-        std::printf("Failed to allocate memory.\n");
+    if (!optimizer_points) {
+        SDL_LogCritical(SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory.\n");
         return SDL_APP_FAILURE;
     }
 
-    forces = static_cast<real_t *>(
+    optimizer_gradient = static_cast<real_t *>(
         std::malloc(3 * static_cast<std::size_t>(num_points) * sizeof(real_t))
     );
-    if (!forces) {
-        std::printf("Failed to allocate memory.\n");
+    if (!optimizer_gradient) {
+        SDL_LogCritical(SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory.\n");
         return SDL_APP_FAILURE;
     }
 
-    colors = static_cast<SDL_FColor *>(
+    renderer_lock = SDL_CreateRWLock();
+    if (!renderer_lock) {
+        SDL_LogCritical(SDL_LOG_CATEGORY_ERROR, "Failed to create lock.\n");
+        return SDL_APP_FAILURE;
+    }
+
+    renderer_points = static_cast<double *>(
+        std::malloc(3 * static_cast<std::size_t>(num_points) * sizeof(double))
+    );
+    if (!renderer_points) {
+        SDL_LogCritical(SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory.\n");
+        return SDL_APP_FAILURE;
+    }
+
+    renderer_forces = static_cast<double *>(
+        std::malloc(3 * static_cast<std::size_t>(num_points) * sizeof(double))
+    );
+    if (!renderer_forces) {
+        SDL_LogCritical(SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory.\n");
+        return SDL_APP_FAILURE;
+    }
+
+    renderer_colors = static_cast<SDL_FColor *>(
         std::malloc(static_cast<std::size_t>(num_points) * sizeof(SDL_FColor))
     );
-    if (!colors) {
-        std::printf("Failed to allocate memory.\n");
+    if (!renderer_colors) {
+        SDL_LogCritical(SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory.\n");
         return SDL_APP_FAILURE;
     }
 
-    vertices = static_cast<SDL_Vertex *>(std::malloc(
+    renderer_vertices = static_cast<SDL_Vertex *>(std::malloc(
         static_cast<std::size_t>(num_points) * (3 * NUM_CIRCLE_VECTORS) *
         sizeof(SDL_Vertex)
     ));
-    if (!vertices) {
-        std::printf("Failed to allocate memory.\n");
+    if (!renderer_vertices) {
+        SDL_LogCritical(SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory.\n");
         return SDL_APP_FAILURE;
     }
 
-    int k = 0;
     for (int i = 0; i < num_points; i++) {
         real_t x, y, z;
         while (true) {
@@ -175,11 +285,15 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
                 break;
             }
         }
-        points[k++] = x;
-        points[k++] = y;
-        points[k++] = z;
-        colors[i] = random_color();
+        optimizer_points[3 * i + 0] = x;
+        optimizer_points[3 * i + 1] = y;
+        optimizer_points[3 * i + 2] = z;
+        renderer_colors[i] = random_color();
     }
+
+    compute_coulomb_gradient(optimizer_gradient, optimizer_points, num_points);
+    quantize_points(renderer_points, optimizer_points, num_points);
+    quantize_forces(renderer_forces, optimizer_gradient, num_points);
 
     SDL_GetCurrentTime(&last_draw_time);
 
@@ -188,6 +302,7 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
 
 
 SDL_AppResult SDL_AppEvent(void *, SDL_Event *event) {
+    using GlobalVariables::angular_velocity;
     switch (event->type) {
         case SDL_EVENT_QUIT: return SDL_APP_SUCCESS;
         case SDL_EVENT_KEY_DOWN: {
@@ -200,61 +315,18 @@ SDL_AppResult SDL_AppEvent(void *, SDL_Event *event) {
     }
 }
 
-static void compute_forces() {
-    using std::sqrt;
-    int k = 0;
-    for (int i = 0; i < num_points; i++) {
-        forces[k++] = ZERO;
-        forces[k++] = ZERO;
-        forces[k++] = ZERO;
-    }
-    for (int j = 1; j < num_points; j++) {
-        const real_t xj = points[3 * j + 0];
-        const real_t yj = points[3 * j + 1];
-        const real_t zj = points[3 * j + 2];
-        for (int i = 0; i < j; i++) {
-            const real_t xi = points[3 * i + 0];
-            const real_t yi = points[3 * i + 1];
-            const real_t zi = points[3 * i + 2];
-            const real_t dx = xi - xj;
-            const real_t dy = yi - yj;
-            const real_t dz = zi - zj;
-            const real_t norm_squared = dx * dx + dy * dy + dz * dz;
-            const real_t inv_norm_cubed =
-                ONE / (norm_squared * sqrt(norm_squared));
-            forces[3 * i + 0] += dx * inv_norm_cubed;
-            forces[3 * i + 1] += dy * inv_norm_cubed;
-            forces[3 * i + 2] += dz * inv_norm_cubed;
-            forces[3 * j + 0] -= dx * inv_norm_cubed;
-            forces[3 * j + 1] -= dy * inv_norm_cubed;
-            forces[3 * j + 2] -= dz * inv_norm_cubed;
-        }
-    }
-}
-
-
-static void move_points(real_t step_size) {
-    using std::sqrt;
-    for (int i = 0; i < num_points; i++) {
-        real_t x = points[3 * i + 0] + step_size * forces[3 * i + 0];
-        real_t y = points[3 * i + 1] + step_size * forces[3 * i + 1];
-        real_t z = points[3 * i + 2] + step_size * forces[3 * i + 2];
-        real_t norm_squared = x * x + y * y + z * z;
-        real_t inv_norm = ONE / sqrt(norm_squared);
-        x *= inv_norm;
-        y *= inv_norm;
-        z *= inv_norm;
-        points[3 * i + 0] = x;
-        points[3 * i + 1] = y;
-        points[3 * i + 2] = z;
-    }
-}
-
 
 SDL_AppResult SDL_AppIterate(void *) {
 
-    compute_forces();
-    move_points(0.00001);
+    using namespace GlobalVariables;
+
+    move_points(optimizer_points, optimizer_gradient, 1.0e-6, num_points);
+    compute_coulomb_gradient(optimizer_gradient, optimizer_points, num_points);
+
+    SDL_LockRWLockForWriting(renderer_lock);
+    quantize_points(renderer_points, optimizer_points, num_points);
+    quantize_forces(renderer_forces, optimizer_gradient, num_points);
+    SDL_UnlockRWLock(renderer_lock);
 
     int width, height;
     SDL_GetWindowSize(window, &width, &height);
@@ -275,36 +347,39 @@ SDL_AppResult SDL_AppIterate(void *) {
     const double sin_angle = std::sin(angle);
     const double cos_angle = std::cos(angle);
 
-    int k = 0;
-    int num_drawn_points = 0;
-    SDL_Vertex *vertex_pointer = vertices;
+    int num_rendered_points = 0;
+    SDL_Vertex *vertex_pointer = renderer_vertices;
+    SDL_LockRWLockForReading(renderer_lock);
     for (int i = 0; i < num_points; i++) {
         // Transform world space to view space in double precision.
-        const double x = static_cast<double>(points[k++]);
-        const double y = static_cast<double>(points[k++]);
-        const double z = static_cast<double>(points[k++]);
+        const double x = static_cast<double>(renderer_points[3 * i + 0]);
+        const double y = static_cast<double>(renderer_points[3 * i + 1]);
+        const double z = static_cast<double>(renderer_points[3 * i + 2]);
         const float vx = static_cast<float>(x * cos_angle + z * sin_angle);
         const float vy = static_cast<float>(y);
         const float vz = static_cast<float>(z * cos_angle - x * sin_angle);
         if (vz >= 0.0f) {
             // Transform view space to screen space in single precision.
-            ++num_drawn_points;
+            ++num_rendered_points;
             const float sx = origin_x + scale * vx;
             const float sy = origin_y - scale * vy;
             // Simulate perspective by making closer points larger.
             // We should use a proper perspective transformation
             // in the future, but this is good enough for now.
             const float r = 3.0f * vz + 1.0f;
-            construct_circle_vertices(vertex_pointer, {sx, sy}, r, colors[i]);
+            construct_circle_vertices(
+                vertex_pointer, {sx, sy}, r, renderer_colors[i]
+            );
             vertex_pointer += 3 * NUM_CIRCLE_VECTORS;
         }
     }
+    SDL_UnlockRWLock(renderer_lock);
 
     SDL_RenderGeometry(
         renderer,
         nullptr,
-        vertices,
-        3 * NUM_CIRCLE_VECTORS * num_drawn_points,
+        renderer_vertices,
+        3 * NUM_CIRCLE_VECTORS * num_rendered_points,
         nullptr,
         0
     );
@@ -330,7 +405,7 @@ SDL_AppResult SDL_AppIterate(void *) {
         debug_message_buffer,
         sizeof(debug_message_buffer),
         "Points drawn:%7d",
-        num_drawn_points
+        num_rendered_points
     );
     SDL_RenderDebugText(renderer, 0.0f, 20.0f, debug_message_buffer);
     SDL_SetRenderScale(renderer, 1.0f, 1.0f);
@@ -342,10 +417,14 @@ SDL_AppResult SDL_AppIterate(void *) {
 
 
 void SDL_AppQuit(void *, SDL_AppResult) {
-    std::free(vertices);
-    std::free(colors);
-    std::free(forces);
-    std::free(points);
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
+    using namespace GlobalVariables;
+    if (renderer_vertices) { std::free(renderer_vertices); }
+    if (renderer_colors) { std::free(renderer_colors); }
+    if (renderer_forces) { std::free(renderer_forces); }
+    if (renderer_points) { std::free(renderer_points); }
+    if (renderer_lock) { SDL_DestroyRWLock(renderer_lock); }
+    if (optimizer_gradient) { std::free(optimizer_gradient); }
+    if (optimizer_points) { std::free(optimizer_points); }
+    if (renderer) { SDL_DestroyRenderer(renderer); }
+    if (window) { SDL_DestroyWindow(window); }
 }
