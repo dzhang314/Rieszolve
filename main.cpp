@@ -267,7 +267,8 @@ SDL_AppResult SDL_AppIterate(void *) {
 
     SDL_Time time;
     SDL_GetCurrentTime(&time);
-    angle += angular_velocity * static_cast<double>(time - last_draw_time);
+    const SDL_Time frame_duration = time - last_draw_time;
+    angle += angular_velocity * static_cast<double>(frame_duration);
     if (angle >= PI) { angle -= (PI + PI); }
     if (angle < -PI) { angle += (PI + PI); }
     last_draw_time = time;
@@ -307,6 +308,33 @@ SDL_AppResult SDL_AppIterate(void *) {
         nullptr,
         0
     );
+
+    char debug_message_buffer[256];
+    SDL_SetRenderScale(renderer, 2.0f, 2.0f);
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, SDL_ALPHA_OPAQUE);
+    std::snprintf(
+        debug_message_buffer,
+        sizeof(debug_message_buffer),
+        "FPS:%6.0f",
+        1.0e9 / static_cast<double>(frame_duration)
+    );
+    SDL_RenderDebugText(renderer, 0.0f, 0.0f, debug_message_buffer);
+    std::snprintf(
+        debug_message_buffer,
+        sizeof(debug_message_buffer),
+        "Frame time:%9.3f ms",
+        1.0e-6 * static_cast<double>(frame_duration)
+    );
+    SDL_RenderDebugText(renderer, 0.0f, 10.0f, debug_message_buffer);
+    std::snprintf(
+        debug_message_buffer,
+        sizeof(debug_message_buffer),
+        "Points drawn:%7d",
+        num_drawn_points
+    );
+    SDL_RenderDebugText(renderer, 0.0f, 20.0f, debug_message_buffer);
+    SDL_SetRenderScale(renderer, 1.0f, 1.0f);
+
     SDL_RenderPresent(renderer);
 
     return SDL_APP_CONTINUE;
