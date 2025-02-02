@@ -1,10 +1,12 @@
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 
 #define SDL_MAIN_USE_CALLBACKS 1
-#include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
+#include <SDL3/SDL_render.h>
+#include <SDL3/SDL_time.h>
 
 
 static float rand_float() {
@@ -17,6 +19,15 @@ static SDL_FColor random_color() {
 }
 
 
+// Rieszolve uses mixed-precision arithmetic to solve the Thomson problem
+// with extremely high accuracy without sacrificing rendering performance.
+// * Geometry optimization is performed in extended precision
+//   using compensated algorithms and floating-point expansions.
+// * World-space-to-view-space transformations (trigonometry
+//   and rotations) are performed in double precision.
+// * View-space-to-screen-space transformations (translation
+//   and scaling) are performed in single precision.
+constexpr double PI = 3.1415926535897932;
 constexpr int NUM_CIRCLE_VECTORS = 48;
 constexpr SDL_FPoint CIRCLE_VECTORS[NUM_CIRCLE_VECTORS] = {
     {+0.991444861f, +0.130526192f}, {+0.965925826f, +0.258819045f},
@@ -74,7 +85,9 @@ constexpr int INITIAL_WINDOW_WIDTH = 1920;
 constexpr int INITIAL_WINDOW_HEIGHT = 1080;
 static SDL_Window *window = nullptr;
 static SDL_Renderer *renderer = nullptr;
-static SDL_Time init_time = 0;
+static SDL_Time last_draw_time = 0;
+static double angle = 0.0;
+static double angular_velocity = 0.0;
 
 using real_t = double;
 constexpr real_t ZERO = static_cast<real_t>(0);
@@ -96,13 +109,13 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
         SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_RESIZABLE
     );
     if (!window) {
-        printf("Failed to create window: %s\n", SDL_GetError());
+        std::printf("Failed to create window: %s\n", SDL_GetError());
         return SDL_APP_FAILURE;
     }
 
     renderer = SDL_CreateRenderer(window, nullptr);
     if (!renderer) {
-        printf("Failed to create renderer: %s\n", SDL_GetError());
+        std::printf("Failed to create renderer: %s\n", SDL_GetError());
         return SDL_APP_FAILURE;
     }
 
@@ -112,7 +125,7 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
         std::malloc(3 * static_cast<std::size_t>(num_points) * sizeof(real_t))
     );
     if (!points) {
-        printf("Failed to allocate memory.\n");
+        std::printf("Failed to allocate memory.\n");
         return SDL_APP_FAILURE;
     }
 
@@ -120,7 +133,7 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
         std::malloc(3 * static_cast<std::size_t>(num_points) * sizeof(real_t))
     );
     if (!forces) {
-        printf("Failed to allocate memory.\n");
+        std::printf("Failed to allocate memory.\n");
         return SDL_APP_FAILURE;
     }
 
@@ -128,7 +141,7 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
         std::malloc(static_cast<std::size_t>(num_points) * sizeof(SDL_FColor))
     );
     if (!colors) {
-        printf("Failed to allocate memory.\n");
+        std::printf("Failed to allocate memory.\n");
         return SDL_APP_FAILURE;
     }
 
@@ -137,7 +150,7 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
         sizeof(SDL_Vertex)
     ));
     if (!vertices) {
-        printf("Failed to allocate memory.\n");
+        std::printf("Failed to allocate memory.\n");
         return SDL_APP_FAILURE;
     }
 
@@ -168,7 +181,7 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
         colors[i] = random_color();
     }
 
-    SDL_GetCurrentTime(&init_time);
+    SDL_GetCurrentTime(&last_draw_time);
 
     return SDL_APP_CONTINUE;
 }
@@ -177,10 +190,15 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
 SDL_AppResult SDL_AppEvent(void *, SDL_Event *event) {
     switch (event->type) {
         case SDL_EVENT_QUIT: return SDL_APP_SUCCESS;
+        case SDL_EVENT_KEY_DOWN: {
+            if (event->key.key == SDLK_ESCAPE) { return SDL_APP_SUCCESS; }
+            if (event->key.key == SDLK_LEFT) { angular_velocity -= 2.0e-10; }
+            if (event->key.key == SDLK_RIGHT) { angular_velocity += 2.0e-10; }
+            return SDL_APP_CONTINUE;
+        }
         default: return SDL_APP_CONTINUE;
     }
 }
-
 
 static void compute_forces() {
     using std::sqrt;
@@ -249,28 +267,34 @@ SDL_AppResult SDL_AppIterate(void *) {
 
     SDL_Time time;
     SDL_GetCurrentTime(&time);
-    const float theta = 0.3e-9f * static_cast<float>(time - init_time);
+    angle += angular_velocity * static_cast<double>(time - last_draw_time);
+    if (angle >= PI) { angle -= (PI + PI); }
+    if (angle < -PI) { angle += (PI + PI); }
+    last_draw_time = time;
+    const double sin_angle = std::sin(angle);
+    const double cos_angle = std::cos(angle);
 
     int k = 0;
     int num_drawn_points = 0;
     SDL_Vertex *vertex_pointer = vertices;
     for (int i = 0; i < num_points; i++) {
-        const float x = static_cast<float>(points[k++]);
-        const float y = static_cast<float>(points[k++]);
-        const float z = static_cast<float>(points[k++]);
-        const float rx = x * std::cosf(theta) + z * std::sinf(theta);
-        const float ry = y;
-        const float rz = z * std::cosf(theta) - x * std::sinf(theta);
-        if (rz >= 0.0f) {
+        // Transform world space to view space in double precision.
+        const double x = static_cast<double>(points[k++]);
+        const double y = static_cast<double>(points[k++]);
+        const double z = static_cast<double>(points[k++]);
+        const float vx = static_cast<float>(x * cos_angle + z * sin_angle);
+        const float vy = static_cast<float>(y);
+        const float vz = static_cast<float>(z * cos_angle - x * sin_angle);
+        if (vz >= 0.0f) {
+            // Transform view space to screen space in single precision.
             ++num_drawn_points;
-            const float screen_x = origin_x + scale * static_cast<float>(rx);
-            const float screen_y = origin_y - scale * static_cast<float>(ry);
-            construct_circle_vertices(
-                vertex_pointer,
-                {screen_x, screen_y},
-                3.0f * rz + 1.0f,
-                colors[i]
-            );
+            const float sx = origin_x + scale * vx;
+            const float sy = origin_y - scale * vy;
+            // Simulate perspective by making closer points larger.
+            // We should use a proper perspective transformation
+            // in the future, but this is good enough for now.
+            const float r = 3.0f * vz + 1.0f;
+            construct_circle_vertices(vertex_pointer, {sx, sy}, r, colors[i]);
             vertex_pointer += 3 * NUM_CIRCLE_VECTORS;
         }
     }
