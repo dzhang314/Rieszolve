@@ -8,12 +8,12 @@
 #include <SDL3/SDL_main.h>
 
 
-static float rand_float() {
+static inline float rand_float() {
     return static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX);
 }
 
 
-static SDL_FColor random_color() {
+static inline SDL_FColor random_color() {
     const float r = rand_float();
     const float g = rand_float();
     const float b = rand_float();
@@ -155,7 +155,7 @@ constexpr real_t ZERO = static_cast<real_t>(0);
 constexpr real_t ONE = static_cast<real_t>(1);
 
 
-static void compute_coulomb_gradient(
+static inline void compute_coulomb_gradient(
     real_t *gradient_x,
     real_t *gradient_y,
     real_t *gradient_z,
@@ -198,7 +198,38 @@ static void compute_coulomb_gradient(
 }
 
 
-static void move_points(
+static inline double constrain_gradient(
+    real_t *gradient_x,
+    real_t *gradient_y,
+    real_t *gradient_z,
+    const real_t *points_x,
+    const real_t *points_y,
+    const real_t *points_z,
+    int num_points
+) {
+    using std::fma;
+    real_t gradient_norm_squared = ZERO;
+    for (int i = 0; i < num_points; i++) {
+        const real_t gx = gradient_x[i];
+        const real_t gy = gradient_y[i];
+        const real_t gz = gradient_z[i];
+        const real_t x = points_x[i];
+        const real_t y = points_y[i];
+        const real_t z = points_z[i];
+        const real_t dot_product = gx * x + gy * y + gz * z;
+        const real_t ngx = fma(dot_product, x, -gx);
+        const real_t ngy = fma(dot_product, y, -gy);
+        const real_t ngz = fma(dot_product, z, -gz);
+        gradient_x[i] = -ngx;
+        gradient_y[i] = -ngy;
+        gradient_z[i] = -ngz;
+        gradient_norm_squared += ngx * ngx + ngy * ngy + ngz * ngz;
+    }
+    return std::sqrt(static_cast<double>(gradient_norm_squared));
+}
+
+
+static inline void move_points(
     real_t *points_x,
     real_t *points_y,
     real_t *points_z,
@@ -224,7 +255,7 @@ static void move_points(
 }
 
 
-static void quantize_points(
+static inline void quantize_points(
     double *points,
     const real_t *points_x,
     const real_t *points_y,
@@ -240,7 +271,7 @@ static void quantize_points(
 }
 
 
-static void quantize_forces(
+static inline void quantize_forces(
     double *forces,
     const real_t *gradient_x,
     const real_t *gradient_y,
@@ -269,6 +300,7 @@ static SDL_Time last_draw_duration = 0;
 static SDL_Time last_step_duration = 0;
 static double angle = 0.0;
 static int angular_velocity = 2;
+static double gradient_norm = 0.0;
 static bool quit = false;
 
 static SDL_Window *window = nullptr;
@@ -289,7 +321,7 @@ static SDL_Thread *optimizer_thread = nullptr;
 } // namespace GlobalVariables
 
 
-static int SDLCALL run_optimizer(void *) {
+static inline int SDLCALL run_optimizer(void *) {
     using namespace GlobalVariables;
     while (!quit) {
 
@@ -300,7 +332,16 @@ static int SDLCALL run_optimizer(void *) {
             optimizer_gradient_x,
             optimizer_gradient_y,
             optimizer_gradient_z,
-            1.0e-7,
+            1.0e-6,
+            num_points
+        );
+        gradient_norm = constrain_gradient(
+            optimizer_gradient_x,
+            optimizer_gradient_y,
+            optimizer_gradient_z,
+            optimizer_points_x,
+            optimizer_points_y,
+            optimizer_points_z,
             num_points
         );
         compute_coulomb_gradient(
@@ -462,6 +503,15 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
     }
 
     compute_coulomb_gradient(
+        optimizer_gradient_x,
+        optimizer_gradient_y,
+        optimizer_gradient_z,
+        optimizer_points_x,
+        optimizer_points_y,
+        optimizer_points_z,
+        num_points
+    );
+    gradient_norm = constrain_gradient(
         optimizer_gradient_x,
         optimizer_gradient_y,
         optimizer_gradient_z,
@@ -632,6 +682,13 @@ SDL_AppResult SDL_AppIterate(void *) {
         1.0e-6 * static_cast<double>(last_step_duration)
     );
     SDL_RenderDebugText(renderer, 0.0f, 50.0f, debug_message_buffer);
+    std::snprintf(
+        debug_message_buffer,
+        sizeof(debug_message_buffer),
+        "Gradient norm: %.17e",
+        gradient_norm
+    );
+    SDL_RenderDebugText(renderer, 0.0f, 60.0f, debug_message_buffer);
     SDL_SetRenderScale(renderer, 1.0f, 1.0f);
 
     SDL_RenderPresent(renderer);
