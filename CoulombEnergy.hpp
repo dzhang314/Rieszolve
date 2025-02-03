@@ -95,10 +95,10 @@ static inline double constrain_forces(
         const double x = points_x[i];
         const double y = points_y[i];
         const double z = points_z[i];
-        const double dot = fx * x + fy * y + fz * z;
-        const double proj_x = fx - dot * x;
-        const double proj_y = fy - dot * y;
-        const double proj_z = fz - dot * z;
+        const double dot = std::fma(fx, x, std::fma(fy, y, fz * z));
+        const double proj_x = -std::fma(dot, x, -fx);
+        const double proj_y = -std::fma(dot, y, -fy);
+        const double proj_z = -std::fma(dot, z, -fz);
         forces_x[i] = proj_x;
         forces_y[i] = proj_y;
         forces_z[i] = proj_z;

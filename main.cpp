@@ -52,6 +52,7 @@ static double angle = 0.0;
 static int angular_velocity = 2;
 static double energy = 0.0;
 static double force_norm = 0.0;
+static bool render_forces = true;
 static bool quit = false;
 
 static SDL_Window *window = nullptr;
@@ -70,6 +71,7 @@ static double *renderer_forces_x = nullptr;
 static double *renderer_forces_y = nullptr;
 static double *renderer_forces_z = nullptr;
 static float *screen_points = nullptr;
+static float *screen_forces = nullptr;
 static SDL_FColor *renderer_colors = nullptr;
 static SDL_Vertex *renderer_vertices = nullptr;
 static SDL_Thread *optimizer_thread = nullptr;
@@ -240,6 +242,7 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
     ALLOCATE_ALIGNED_MEMORY(renderer_forces_z, double, num_points);
 
     ALLOCATE_MEMORY(screen_points, float, 3 * num_points);
+    ALLOCATE_MEMORY(screen_forces, float, 2 * num_points);
     ALLOCATE_MEMORY(renderer_colors, SDL_FColor, num_points);
     ALLOCATE_MEMORY(
         renderer_vertices, SDL_Vertex, NUM_CIRCLE_VERTICES * num_points
@@ -291,6 +294,7 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
 
 SDL_AppResult SDL_AppEvent(void *, SDL_Event *event) {
     using GlobalVariables::angular_velocity;
+    using GlobalVariables::render_forces;
     switch (event->type) {
         case SDL_EVENT_QUIT: return SDL_APP_SUCCESS;
         case SDL_EVENT_KEY_DOWN: {
@@ -299,6 +303,7 @@ SDL_AppResult SDL_AppEvent(void *, SDL_Event *event) {
                 case SDLK_Q: return SDL_APP_SUCCESS;
                 case SDLK_LEFT: angular_velocity -= 2; break;
                 case SDLK_RIGHT: angular_velocity += 2; break;
+                case SDLK_F: render_forces = !render_forces; break;
                 default: break;
             }
             return SDL_APP_CONTINUE;
@@ -318,6 +323,8 @@ SDL_AppResult SDL_AppIterate(void *) {
     const float origin_x = 0.5f * static_cast<float>(width);
     const float origin_y = 0.5f * static_cast<float>(height);
     const float scale = 0.375f * static_cast<float>(std::min(width, height));
+    const double rms_force = force_norm / std::sqrt(num_points);
+    const float force_scale = 0.125f * scale / static_cast<float>(rms_force);
 
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
     SDL_RenderClear(renderer);
@@ -333,6 +340,7 @@ SDL_AppResult SDL_AppIterate(void *) {
     if (angle < -PI) { angle += (PI + PI); }
     const double sin_angle = std::sin(angle);
     const double cos_angle = std::cos(angle);
+
     SDL_LockRWLockForReading(renderer_lock);
     for (int i = 0; i < num_points; ++i) {
         // Transform world space to view space in double precision.
@@ -352,10 +360,25 @@ SDL_AppResult SDL_AppIterate(void *) {
             // We should use a proper perspective transformation
             // in the future, but this is good enough for now.
             screen_points[3 * i + 2] = 6.0f * static_cast<float>(vz) + 2.0f;
+            if (render_forces) {
+                const double fx = renderer_forces_x[i];
+                const double fy = renderer_forces_y[i];
+                const double fz = renderer_forces_z[i];
+                const double vfx = fx * cos_angle + fz * sin_angle;
+                const double vfy = fy;
+                screen_forces[2 * i + 0] =
+                    +force_scale * static_cast<float>(vfx);
+                screen_forces[2 * i + 1] =
+                    -force_scale * static_cast<float>(vfy);
+            }
         } else {
             screen_points[3 * i + 0] = NAN;
             screen_points[3 * i + 1] = NAN;
             screen_points[3 * i + 2] = NAN;
+            if (render_forces) {
+                screen_forces[2 * i + 0] = NAN;
+                screen_forces[2 * i + 1] = NAN;
+            }
         }
     }
     SDL_UnlockRWLock(renderer_lock);
@@ -388,9 +411,28 @@ SDL_AppResult SDL_AppIterate(void *) {
         0
     );
 
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, SDL_ALPHA_OPAQUE);
+    if (render_forces) {
+        for (int i = 0; i < num_points; ++i) {
+            bool valid = true;
+            const float sx = screen_points[3 * i + 0];
+            valid &= !std::isnan(sx);
+            const float sy = screen_points[3 * i + 1];
+            valid &= !std::isnan(sy);
+            if (valid) {
+                SDL_RenderLine(
+                    renderer,
+                    sx,
+                    sy,
+                    sx + screen_forces[2 * i + 0],
+                    sy + screen_forces[2 * i + 1]
+                );
+            }
+        }
+    }
+
     char debug_message_buffer[256];
     SDL_SetRenderScale(renderer, 2.0f, 2.0f);
-    SDL_SetRenderDrawColor(renderer, 255, 255, 255, SDL_ALPHA_OPAQUE);
     std::snprintf(
         debug_message_buffer,
         sizeof(debug_message_buffer),
@@ -443,8 +485,8 @@ SDL_AppResult SDL_AppIterate(void *) {
     std::snprintf(
         debug_message_buffer,
         sizeof(debug_message_buffer),
-        "Total force: %.17e",
-        force_norm
+        "RMS force: %.17e",
+        rms_force
     );
     SDL_RenderDebugText(renderer, 0.0f, 70.0f, debug_message_buffer);
     SDL_SetRenderScale(renderer, 1.0f, 1.0f);
