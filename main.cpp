@@ -268,7 +268,7 @@ static SDL_Time last_step_time = 0;
 static SDL_Time last_draw_duration = 0;
 static SDL_Time last_step_duration = 0;
 static double angle = 0.0;
-static double angular_velocity = 2.0e-10;
+static int angular_velocity = 2;
 static bool quit = false;
 
 static SDL_Window *window = nullptr;
@@ -513,8 +513,8 @@ SDL_AppResult SDL_AppEvent(void *, SDL_Event *event) {
             switch (event->key.key) {
                 case SDLK_ESCAPE: return SDL_APP_SUCCESS;
                 case SDLK_Q: return SDL_APP_SUCCESS;
-                case SDLK_LEFT: angular_velocity -= 2.0e-10; break;
-                case SDLK_RIGHT: angular_velocity += 2.0e-10; break;
+                case SDLK_LEFT: angular_velocity -= 2; break;
+                case SDLK_RIGHT: angular_velocity += 2; break;
                 default: break;
             }
             return SDL_APP_CONTINUE;
@@ -543,7 +543,8 @@ SDL_AppResult SDL_AppIterate(void *) {
     last_draw_duration = current_time - last_draw_time;
     last_draw_time = current_time;
 
-    angle += angular_velocity * static_cast<double>(last_draw_duration);
+    angle += 1.0e-10 * static_cast<double>(angular_velocity) *
+             static_cast<double>(last_draw_duration);
     if (angle >= PI) { angle -= (PI + PI); }
     if (angle < -PI) { angle += (PI + PI); }
     const double sin_angle = std::sin(angle);
@@ -600,7 +601,7 @@ SDL_AppResult SDL_AppIterate(void *) {
         debug_message_buffer,
         sizeof(debug_message_buffer),
         "Angular velocity: %+.1f rad/s",
-        1.0e9 * angular_velocity
+        0.1 * static_cast<double>(angular_velocity)
     );
     SDL_RenderDebugText(renderer, 0.0f, 10.0f, debug_message_buffer);
     std::snprintf(
