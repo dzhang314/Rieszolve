@@ -31,55 +31,122 @@ static SDL_FColor random_color() {
 // * View-space-to-screen-space transformations (translation
 //   and scaling) are performed in single precision.
 constexpr double PI = 3.1415926535897932;
-constexpr int NUM_CIRCLE_VECTORS = 48;
-constexpr SDL_FPoint CIRCLE_VECTORS[NUM_CIRCLE_VECTORS] = {
-    {+0.991444861f, +0.130526192f}, {+0.965925826f, +0.258819045f},
-    {+0.923879533f, +0.382683432f}, {+0.866025404f, +0.500000000f},
-    {+0.793353340f, +0.608761429f}, {+0.707106781f, +0.707106781f},
-    {+0.608761429f, +0.793353340f}, {+0.500000000f, +0.866025404f},
-    {+0.382683432f, +0.923879533f}, {+0.258819045f, +0.965925826f},
-    {+0.130526192f, +0.991444861f}, {+0.000000000f, +1.000000000f},
-    {-0.130526192f, +0.991444861f}, {-0.258819045f, +0.965925826f},
-    {-0.382683432f, +0.923879533f}, {-0.500000000f, +0.866025404f},
-    {-0.608761429f, +0.793353340f}, {-0.707106781f, +0.707106781f},
-    {-0.793353340f, +0.608761429f}, {-0.866025404f, +0.500000000f},
-    {-0.923879533f, +0.382683432f}, {-0.965925826f, +0.258819045f},
-    {-0.991444861f, +0.130526192f}, {-1.000000000f, +0.000000000f},
-    {-0.991444861f, -0.130526192f}, {-0.965925826f, -0.258819045f},
-    {-0.923879533f, -0.382683432f}, {-0.866025404f, -0.500000000f},
-    {-0.793353340f, -0.608761429f}, {-0.707106781f, -0.707106781f},
-    {-0.608761429f, -0.793353340f}, {-0.500000000f, -0.866025404f},
-    {-0.382683432f, -0.923879533f}, {-0.258819045f, -0.965925826f},
-    {-0.130526192f, -0.991444861f}, {+0.000000000f, -1.000000000f},
-    {+0.130526192f, -0.991444861f}, {+0.258819045f, -0.965925826f},
-    {+0.382683432f, -0.923879533f}, {+0.500000000f, -0.866025404f},
-    {+0.608761429f, -0.793353340f}, {+0.707106781f, -0.707106781f},
-    {+0.793353340f, -0.608761429f}, {+0.866025404f, -0.500000000f},
-    {+0.923879533f, -0.382683432f}, {+0.965925826f, -0.258819045f},
-    {+0.991444861f, -0.130526192f}, {+1.000000000f, +0.000000000f},
-};
+constexpr int NUM_CIRCLE_VERTICES = 36;
 
 
-static void construct_circle_vertices(
+static inline void construct_circle_vertices(
     SDL_Vertex *vertices, SDL_FPoint center, float radius, SDL_FColor color
 ) {
-    SDL_Vertex c, v, w;
-    c.position = center;
-    c.color = color;
-    v.color = color;
-    w.position = {center.x + radius, center.y};
-    w.color = color;
-    for (int i = 0; i < NUM_CIRCLE_VECTORS; i++) {
-        const SDL_FPoint circle_vector = CIRCLE_VECTORS[i];
-        v.position = w.position;
-        w.position = {
-            std::fmaf(circle_vector.x, radius, center.x),
-            std::fmaf(circle_vector.y, radius, center.y),
-        };
-        vertices[3 * i + 0] = c;
-        vertices[3 * i + 1] = v;
-        vertices[3 * i + 2] = w;
-    }
+    const float major = 0.866025404f * radius;
+    const float minor = 0.5f * radius;
+
+    vertices[0].position = center;
+    vertices[0].color = color;
+    vertices[1].position.x = center.x + radius;
+    vertices[1].position.y = center.y;
+    vertices[1].color = color;
+    vertices[2].position.x = center.x + major;
+    vertices[2].position.y = center.y + minor;
+    vertices[2].color = color;
+
+    vertices[3].position = center;
+    vertices[3].color = color;
+    vertices[4].position.x = center.x + major;
+    vertices[4].position.y = center.y + minor;
+    vertices[4].color = color;
+    vertices[5].position.x = center.x + minor;
+    vertices[5].position.y = center.y + major;
+    vertices[5].color = color;
+
+    vertices[6].position = center;
+    vertices[6].color = color;
+    vertices[7].position.x = center.x + minor;
+    vertices[7].position.y = center.y + major;
+    vertices[7].color = color;
+    vertices[8].position.x = center.x;
+    vertices[8].position.y = center.y + radius;
+    vertices[8].color = color;
+
+    vertices[9].position = center;
+    vertices[9].color = color;
+    vertices[10].position.x = center.x;
+    vertices[10].position.y = center.y + radius;
+    vertices[10].color = color;
+    vertices[11].position.x = center.x - minor;
+    vertices[11].position.y = center.y + major;
+    vertices[11].color = color;
+
+    vertices[12].position = center;
+    vertices[12].color = color;
+    vertices[13].position.x = center.x - minor;
+    vertices[13].position.y = center.y + major;
+    vertices[13].color = color;
+    vertices[14].position.x = center.x - major;
+    vertices[14].position.y = center.y + minor;
+    vertices[14].color = color;
+
+    vertices[15].position = center;
+    vertices[15].color = color;
+    vertices[16].position.x = center.x - major;
+    vertices[16].position.y = center.y + minor;
+    vertices[16].color = color;
+    vertices[17].position.x = center.x - radius;
+    vertices[17].position.y = center.y;
+    vertices[17].color = color;
+
+    vertices[18].position = center;
+    vertices[18].color = color;
+    vertices[19].position.x = center.x - radius;
+    vertices[19].position.y = center.y;
+    vertices[19].color = color;
+    vertices[20].position.x = center.x - major;
+    vertices[20].position.y = center.y - minor;
+    vertices[20].color = color;
+
+    vertices[21].position = center;
+    vertices[21].color = color;
+    vertices[22].position.x = center.x - major;
+    vertices[22].position.y = center.y - minor;
+    vertices[22].color = color;
+    vertices[23].position.x = center.x - minor;
+    vertices[23].position.y = center.y - major;
+    vertices[23].color = color;
+
+    vertices[24].position = center;
+    vertices[24].color = color;
+    vertices[25].position.x = center.x - minor;
+    vertices[25].position.y = center.y - major;
+    vertices[25].color = color;
+    vertices[26].position.x = center.x;
+    vertices[26].position.y = center.y - radius;
+    vertices[26].color = color;
+
+    vertices[27].position = center;
+    vertices[27].color = color;
+    vertices[28].position.x = center.x;
+    vertices[28].position.y = center.y - radius;
+    vertices[28].color = color;
+    vertices[29].position.x = center.x + minor;
+    vertices[29].position.y = center.y - major;
+    vertices[29].color = color;
+
+    vertices[30].position = center;
+    vertices[30].color = color;
+    vertices[31].position.x = center.x + minor;
+    vertices[31].position.y = center.y - major;
+    vertices[31].color = color;
+    vertices[32].position.x = center.x + major;
+    vertices[32].position.y = center.y - minor;
+    vertices[32].color = color;
+
+    vertices[33].position = center;
+    vertices[33].color = color;
+    vertices[34].position.x = center.x + major;
+    vertices[34].position.y = center.y - minor;
+    vertices[34].color = color;
+    vertices[35].position.x = center.x + radius;
+    vertices[35].position.y = center.y;
+    vertices[35].color = color;
 }
 
 
@@ -89,71 +156,102 @@ constexpr real_t ONE = static_cast<real_t>(1);
 
 
 static void compute_coulomb_gradient(
-    real_t *gradient, const real_t *points, int num_points
+    real_t *gradient_x,
+    real_t *gradient_y,
+    real_t *gradient_z,
+    const real_t *points_x,
+    const real_t *points_y,
+    const real_t *points_z,
+    int num_points
 ) {
     using std::sqrt;
-    for (int i = 0; i < 3 * num_points; i++) { gradient[i] = ZERO; }
-    for (int j = 1; j < num_points; j++) {
-        const real_t xj = points[3 * j + 0];
-        const real_t yj = points[3 * j + 1];
-        const real_t zj = points[3 * j + 2];
-        for (int i = 0; i < j; i++) {
-            const real_t xi = points[3 * i + 0];
-            const real_t yi = points[3 * i + 1];
-            const real_t zi = points[3 * i + 2];
-            const real_t dx = xi - xj;
-            const real_t dy = yi - yj;
-            const real_t dz = zi - zj;
-            const real_t norm_squared = dx * dx + dy * dy + dz * dz;
-            const real_t inv_norm_cubed =
-                ONE / (norm_squared * sqrt(norm_squared));
-            const real_t fx = dx * inv_norm_cubed;
-            const real_t fy = dy * inv_norm_cubed;
-            const real_t fz = dz * inv_norm_cubed;
-            gradient[3 * i + 0] -= fx;
-            gradient[3 * i + 1] -= fy;
-            gradient[3 * i + 2] -= fz;
-            gradient[3 * j + 0] += fx;
-            gradient[3 * j + 1] += fy;
-            gradient[3 * j + 2] += fz;
+#pragma omp parallel for schedule(static) default(none)                        \
+    shared(gradient_x, gradient_y, gradient_z)                                 \
+    shared(points_x, points_y, points_z, num_points)
+    for (int i = 0; i < num_points; i++) {
+        const real_t xi = points_x[i];
+        const real_t yi = points_y[i];
+        const real_t zi = points_z[i];
+        real_t gx = ZERO;
+        real_t gy = ZERO;
+        real_t gz = ZERO;
+#pragma omp simd reduction(+ : gx, gy, gz) simdlen(8)                          \
+    aligned(gradient_x, gradient_y, gradient_z : 64)                           \
+    aligned(points_x, points_y, points_z : 64)
+        for (int j = 0; j < num_points; j++) {
+            if (i != j) {
+                const real_t dx = points_x[j] - xi;
+                const real_t dy = points_y[j] - yi;
+                const real_t dz = points_z[j] - zi;
+                const real_t norm_squared = dx * dx + dy * dy + dz * dz;
+                const real_t inv_norm_cubed =
+                    ONE / (norm_squared * sqrt(norm_squared));
+                gx += dx * inv_norm_cubed;
+                gy += dy * inv_norm_cubed;
+                gz += dz * inv_norm_cubed;
+            }
         }
+        gradient_x[i] = gx;
+        gradient_y[i] = gy;
+        gradient_z[i] = gz;
     }
 }
 
 
 static void move_points(
-    real_t *points, const real_t *gradient, real_t step_size, int num_points
+    real_t *points_x,
+    real_t *points_y,
+    real_t *points_z,
+    const real_t *step_direction_x,
+    const real_t *step_direction_y,
+    const real_t *step_direction_z,
+    real_t step_size,
+    int num_points
 ) {
     using std::sqrt;
+#pragma omp simd simdlen(8) aligned(points_x, points_y, points_z : 64)         \
+    aligned(step_direction_x, step_direction_y, step_direction_z : 64)
     for (int i = 0; i < num_points; i++) {
-        const real_t x = points[3 * i + 0] - step_size * gradient[3 * i + 0];
-        const real_t y = points[3 * i + 1] - step_size * gradient[3 * i + 1];
-        const real_t z = points[3 * i + 2] - step_size * gradient[3 * i + 2];
+        const real_t x = points_x[i] - step_size * step_direction_x[i];
+        const real_t y = points_y[i] - step_size * step_direction_y[i];
+        const real_t z = points_z[i] - step_size * step_direction_z[i];
         const real_t norm_squared = x * x + y * y + z * z;
         const real_t inv_norm = ONE / sqrt(norm_squared);
-        points[3 * i + 0] = x * inv_norm;
-        points[3 * i + 1] = y * inv_norm;
-        points[3 * i + 2] = z * inv_norm;
+        points_x[i] = x * inv_norm;
+        points_y[i] = y * inv_norm;
+        points_z[i] = z * inv_norm;
     }
 }
 
 
-static void
-quantize_points(double *points, const real_t *precise_points, int num_points) {
+static void quantize_points(
+    double *points,
+    const real_t *points_x,
+    const real_t *points_y,
+    const real_t *points_z,
+    int num_points
+) {
+#pragma omp simd aligned(points_x, points_y, points_z : 64) simdlen(8)
     for (int i = 0; i < num_points; i++) {
-        points[3 * i + 0] = static_cast<double>(precise_points[3 * i + 0]);
-        points[3 * i + 1] = static_cast<double>(precise_points[3 * i + 1]);
-        points[3 * i + 2] = static_cast<double>(precise_points[3 * i + 2]);
+        points[3 * i + 0] = static_cast<double>(points_x[i]);
+        points[3 * i + 1] = static_cast<double>(points_y[i]);
+        points[3 * i + 2] = static_cast<double>(points_z[i]);
     }
 }
 
 
-static void
-quantize_forces(double *forces, const real_t *gradient, int num_points) {
+static void quantize_forces(
+    double *forces,
+    const real_t *gradient_x,
+    const real_t *gradient_y,
+    const real_t *gradient_z,
+    int num_points
+) {
+#pragma omp simd aligned(gradient_x, gradient_y, gradient_z : 64) simdlen(8)
     for (int i = 0; i < num_points; i++) {
-        forces[3 * i + 0] = -static_cast<double>(gradient[3 * i + 0]);
-        forces[3 * i + 1] = -static_cast<double>(gradient[3 * i + 1]);
-        forces[3 * i + 2] = -static_cast<double>(gradient[3 * i + 2]);
+        forces[3 * i + 0] = -static_cast<double>(gradient_x[i]);
+        forces[3 * i + 1] = -static_cast<double>(gradient_y[i]);
+        forces[3 * i + 2] = -static_cast<double>(gradient_z[i]);
     }
 }
 
@@ -175,8 +273,12 @@ static bool quit = false;
 
 static SDL_Window *window = nullptr;
 static SDL_Renderer *renderer = nullptr;
-static real_t *optimizer_points = nullptr;
-static real_t *optimizer_gradient = nullptr;
+static real_t *optimizer_points_x = nullptr;
+static real_t *optimizer_points_y = nullptr;
+static real_t *optimizer_points_z = nullptr;
+static real_t *optimizer_gradient_x = nullptr;
+static real_t *optimizer_gradient_y = nullptr;
+static real_t *optimizer_gradient_z = nullptr;
 static SDL_RWLock *renderer_lock = nullptr;
 static double *renderer_points = nullptr;
 static double *renderer_forces = nullptr;
@@ -191,14 +293,41 @@ static int SDLCALL run_optimizer(void *) {
     using namespace GlobalVariables;
     while (!quit) {
 
-        move_points(optimizer_points, optimizer_gradient, 1.0e-6, num_points);
+        move_points(
+            optimizer_points_x,
+            optimizer_points_y,
+            optimizer_points_z,
+            optimizer_gradient_x,
+            optimizer_gradient_y,
+            optimizer_gradient_z,
+            1.0e-7,
+            num_points
+        );
         compute_coulomb_gradient(
-            optimizer_gradient, optimizer_points, num_points
+            optimizer_gradient_x,
+            optimizer_gradient_y,
+            optimizer_gradient_z,
+            optimizer_points_x,
+            optimizer_points_y,
+            optimizer_points_z,
+            num_points
         );
 
         SDL_LockRWLockForWriting(renderer_lock);
-        quantize_points(renderer_points, optimizer_points, num_points);
-        quantize_forces(renderer_forces, optimizer_gradient, num_points);
+        quantize_points(
+            renderer_points,
+            optimizer_points_x,
+            optimizer_points_y,
+            optimizer_points_z,
+            num_points
+        );
+        quantize_forces(
+            renderer_forces,
+            optimizer_gradient_x,
+            optimizer_gradient_y,
+            optimizer_gradient_z,
+            num_points
+        );
         SDL_UnlockRWLock(renderer_lock);
 
         num_steps++;
@@ -209,6 +338,48 @@ static int SDLCALL run_optimizer(void *) {
     }
     return EXIT_SUCCESS;
 }
+
+
+#define ALLOCATE_MEMORY(POINTER_NAME, ARRAY_TYPE, ARRAY_SIZE)                  \
+    do {                                                                       \
+        POINTER_NAME = static_cast<ARRAY_TYPE *>(std::malloc(                  \
+            static_cast<std::size_t>(ARRAY_SIZE) * sizeof(ARRAY_TYPE)          \
+        ));                                                                    \
+        if (!(POINTER_NAME)) {                                                 \
+            SDL_LogCritical(                                                   \
+                SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory.\n"         \
+            );                                                                 \
+            return SDL_APP_FAILURE;                                            \
+        }                                                                      \
+    } while (false)
+
+
+#define ALLOCATE_ALIGNED_MEMORY(POINTER_NAME, ARRAY_TYPE, ARRAY_SIZE)          \
+    do {                                                                       \
+        POINTER_NAME = static_cast<ARRAY_TYPE *>(_aligned_malloc(              \
+            static_cast<std::size_t>(ARRAY_SIZE) * sizeof(ARRAY_TYPE), 64      \
+        ));                                                                    \
+        if (!(POINTER_NAME)) {                                                 \
+            SDL_LogCritical(                                                   \
+                SDL_LOG_CATEGORY_ERROR, "Failed to allocate aligned memory.\n" \
+            );                                                                 \
+            return SDL_APP_FAILURE;                                            \
+        }                                                                      \
+    } while (false)
+
+
+#define FREE_MEMORY(POINTER_NAME)                                              \
+    do {                                                                       \
+        if (POINTER_NAME) { std::free(POINTER_NAME); }                         \
+        POINTER_NAME = nullptr;                                                \
+    } while (false)
+
+
+#define FREE_ALIGNED_MEMORY(POINTER_NAME)                                      \
+    do {                                                                       \
+        if (POINTER_NAME) { _aligned_free(POINTER_NAME); }                     \
+        POINTER_NAME = nullptr;                                                \
+    } while (false)
 
 
 SDL_AppResult SDL_AppInit(void **, int, char **) {
@@ -244,21 +415,12 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
         return SDL_APP_FAILURE;
     }
 
-    optimizer_points = static_cast<real_t *>(
-        std::malloc(3 * static_cast<std::size_t>(num_points) * sizeof(real_t))
-    );
-    if (!optimizer_points) {
-        SDL_LogCritical(SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory.\n");
-        return SDL_APP_FAILURE;
-    }
-
-    optimizer_gradient = static_cast<real_t *>(
-        std::malloc(3 * static_cast<std::size_t>(num_points) * sizeof(real_t))
-    );
-    if (!optimizer_gradient) {
-        SDL_LogCritical(SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory.\n");
-        return SDL_APP_FAILURE;
-    }
+    ALLOCATE_ALIGNED_MEMORY(optimizer_points_x, real_t, num_points);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_points_y, real_t, num_points);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_points_z, real_t, num_points);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_gradient_x, real_t, num_points);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_gradient_y, real_t, num_points);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_gradient_z, real_t, num_points);
 
     renderer_lock = SDL_CreateRWLock();
     if (!renderer_lock) {
@@ -266,38 +428,12 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
         return SDL_APP_FAILURE;
     }
 
-    renderer_points = static_cast<double *>(
-        std::malloc(3 * static_cast<std::size_t>(num_points) * sizeof(double))
+    ALLOCATE_MEMORY(renderer_points, double, 3 * num_points);
+    ALLOCATE_MEMORY(renderer_forces, double, 3 * num_points);
+    ALLOCATE_MEMORY(renderer_colors, SDL_FColor, num_points);
+    ALLOCATE_MEMORY(
+        renderer_vertices, SDL_Vertex, NUM_CIRCLE_VERTICES * num_points
     );
-    if (!renderer_points) {
-        SDL_LogCritical(SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory.\n");
-        return SDL_APP_FAILURE;
-    }
-
-    renderer_forces = static_cast<double *>(
-        std::malloc(3 * static_cast<std::size_t>(num_points) * sizeof(double))
-    );
-    if (!renderer_forces) {
-        SDL_LogCritical(SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory.\n");
-        return SDL_APP_FAILURE;
-    }
-
-    renderer_colors = static_cast<SDL_FColor *>(
-        std::malloc(static_cast<std::size_t>(num_points) * sizeof(SDL_FColor))
-    );
-    if (!renderer_colors) {
-        SDL_LogCritical(SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory.\n");
-        return SDL_APP_FAILURE;
-    }
-
-    renderer_vertices = static_cast<SDL_Vertex *>(std::malloc(
-        static_cast<std::size_t>(num_points) * (3 * NUM_CIRCLE_VECTORS) *
-        sizeof(SDL_Vertex)
-    ));
-    if (!renderer_vertices) {
-        SDL_LogCritical(SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory.\n");
-        return SDL_APP_FAILURE;
-    }
 
     for (int i = 0; i < num_points; i++) {
         real_t x, y, z;
@@ -319,15 +455,35 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
                 break;
             }
         }
-        optimizer_points[3 * i + 0] = x;
-        optimizer_points[3 * i + 1] = y;
-        optimizer_points[3 * i + 2] = z;
+        optimizer_points_x[i] = x;
+        optimizer_points_y[i] = y;
+        optimizer_points_z[i] = z;
         renderer_colors[i] = random_color();
     }
 
-    compute_coulomb_gradient(optimizer_gradient, optimizer_points, num_points);
-    quantize_points(renderer_points, optimizer_points, num_points);
-    quantize_forces(renderer_forces, optimizer_gradient, num_points);
+    compute_coulomb_gradient(
+        optimizer_gradient_x,
+        optimizer_gradient_y,
+        optimizer_gradient_z,
+        optimizer_points_x,
+        optimizer_points_y,
+        optimizer_points_z,
+        num_points
+    );
+    quantize_points(
+        renderer_points,
+        optimizer_points_x,
+        optimizer_points_y,
+        optimizer_points_z,
+        num_points
+    );
+    quantize_forces(
+        renderer_forces,
+        optimizer_gradient_x,
+        optimizer_gradient_y,
+        optimizer_gradient_z,
+        num_points
+    );
 
     optimizer_thread =
         SDL_CreateThread(run_optimizer, "RieszolveOptimizerThread", nullptr);
@@ -398,9 +554,9 @@ SDL_AppResult SDL_AppIterate(void *) {
     SDL_LockRWLockForReading(renderer_lock);
     for (int i = 0; i < num_points; i++) {
         // Transform world space to view space in double precision.
-        const double x = static_cast<double>(renderer_points[3 * i + 0]);
-        const double y = static_cast<double>(renderer_points[3 * i + 1]);
-        const double z = static_cast<double>(renderer_points[3 * i + 2]);
+        const double x = renderer_points[3 * i + 0];
+        const double y = renderer_points[3 * i + 1];
+        const double z = renderer_points[3 * i + 2];
         const float vx = static_cast<float>(x * cos_angle + z * sin_angle);
         const float vy = static_cast<float>(y);
         const float vz = static_cast<float>(z * cos_angle - x * sin_angle);
@@ -416,7 +572,7 @@ SDL_AppResult SDL_AppIterate(void *) {
             construct_circle_vertices(
                 vertex_pointer, {sx, sy}, r, renderer_colors[i]
             );
-            vertex_pointer += 3 * NUM_CIRCLE_VECTORS;
+            vertex_pointer += NUM_CIRCLE_VERTICES;
         }
     }
     SDL_UnlockRWLock(renderer_lock);
@@ -425,7 +581,7 @@ SDL_AppResult SDL_AppIterate(void *) {
         renderer,
         nullptr,
         renderer_vertices,
-        3 * NUM_CIRCLE_VECTORS * num_rendered_points,
+        NUM_CIRCLE_VERTICES * num_rendered_points,
         nullptr,
         0
     );
@@ -486,14 +642,18 @@ SDL_AppResult SDL_AppIterate(void *) {
 void SDL_AppQuit(void *, SDL_AppResult) {
     using namespace GlobalVariables;
     quit = true;
-    SDL_WaitThread(optimizer_thread, nullptr);
-    if (renderer_vertices) { std::free(renderer_vertices); }
-    if (renderer_colors) { std::free(renderer_colors); }
-    if (renderer_forces) { std::free(renderer_forces); }
-    if (renderer_points) { std::free(renderer_points); }
+    if (optimizer_thread) { SDL_WaitThread(optimizer_thread, nullptr); }
+    FREE_MEMORY(renderer_vertices);
+    FREE_MEMORY(renderer_colors);
+    FREE_MEMORY(renderer_forces);
+    FREE_MEMORY(renderer_points);
     if (renderer_lock) { SDL_DestroyRWLock(renderer_lock); }
-    if (optimizer_gradient) { std::free(optimizer_gradient); }
-    if (optimizer_points) { std::free(optimizer_points); }
+    FREE_ALIGNED_MEMORY(optimizer_gradient_z);
+    FREE_ALIGNED_MEMORY(optimizer_gradient_y);
+    FREE_ALIGNED_MEMORY(optimizer_gradient_x);
+    FREE_ALIGNED_MEMORY(optimizer_points_z);
+    FREE_ALIGNED_MEMORY(optimizer_points_y);
+    FREE_ALIGNED_MEMORY(optimizer_points_x);
     if (renderer) { SDL_DestroyRenderer(renderer); }
     if (window) { SDL_DestroyWindow(window); }
 }
