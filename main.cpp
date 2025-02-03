@@ -4,10 +4,8 @@
 #include <cstdlib>
 
 #define SDL_MAIN_USE_CALLBACKS 1
-#include <SDL3/SDL_log.h>
+#include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
-#include <SDL3/SDL_render.h>
-#include <SDL3/SDL_time.h>
 
 
 static float rand_float() {
@@ -16,7 +14,11 @@ static float rand_float() {
 
 
 static SDL_FColor random_color() {
-    return {rand_float(), rand_float(), rand_float(), SDL_ALPHA_OPAQUE_FLOAT};
+    const float r = rand_float();
+    const float g = rand_float();
+    const float b = rand_float();
+    const float scale = 1.0f / std::max(std::max(r, g), b);
+    return {scale * r, scale * g, scale * b, SDL_ALPHA_OPAQUE_FLOAT};
 }
 
 
@@ -162,9 +164,14 @@ constexpr int INITIAL_WINDOW_WIDTH = 1920;
 constexpr int INITIAL_WINDOW_HEIGHT = 1080;
 
 static int num_points = 0;
+static int num_steps = 0;
 static SDL_Time last_draw_time = 0;
+static SDL_Time last_step_time = 0;
+static SDL_Time last_draw_duration = 0;
+static SDL_Time last_step_duration = 0;
 static double angle = 0.0;
-static double angular_velocity = 0.0;
+static double angular_velocity = 2.0e-10;
+static bool quit = false;
 
 static SDL_Window *window = nullptr;
 static SDL_Renderer *renderer = nullptr;
@@ -175,13 +182,42 @@ static double *renderer_points = nullptr;
 static double *renderer_forces = nullptr;
 static SDL_FColor *renderer_colors = nullptr;
 static SDL_Vertex *renderer_vertices = nullptr;
+static SDL_Thread *optimizer_thread = nullptr;
 
 } // namespace GlobalVariables
+
+
+static int SDLCALL run_optimizer(void *) {
+    using namespace GlobalVariables;
+    while (!quit) {
+
+        move_points(optimizer_points, optimizer_gradient, 1.0e-6, num_points);
+        compute_coulomb_gradient(
+            optimizer_gradient, optimizer_points, num_points
+        );
+
+        SDL_LockRWLockForWriting(renderer_lock);
+        quantize_points(renderer_points, optimizer_points, num_points);
+        quantize_forces(renderer_forces, optimizer_gradient, num_points);
+        SDL_UnlockRWLock(renderer_lock);
+
+        num_steps++;
+        SDL_Time current_time;
+        SDL_GetCurrentTime(&current_time);
+        last_step_duration = current_time - last_step_time;
+        last_step_time = current_time;
+    }
+    return EXIT_SUCCESS;
+}
 
 
 SDL_AppResult SDL_AppInit(void **, int, char **) {
 
     using namespace GlobalVariables;
+
+    num_points = 2000;
+    SDL_GetCurrentTime(&last_draw_time);
+    SDL_GetCurrentTime(&last_step_time);
 
     window = SDL_CreateWindow(
         "Rieszolve",
@@ -207,8 +243,6 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
         );
         return SDL_APP_FAILURE;
     }
-
-    num_points = 2000;
 
     optimizer_points = static_cast<real_t *>(
         std::malloc(3 * static_cast<std::size_t>(num_points) * sizeof(real_t))
@@ -295,7 +329,21 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
     quantize_points(renderer_points, optimizer_points, num_points);
     quantize_forces(renderer_forces, optimizer_gradient, num_points);
 
-    SDL_GetCurrentTime(&last_draw_time);
+    optimizer_thread =
+        SDL_CreateThread(run_optimizer, "RieszolveOptimizerThread", nullptr);
+    if (!optimizer_thread) {
+        SDL_LogCritical(
+            SDL_LOG_CATEGORY_ERROR,
+            "Failed to create thread: %s\n",
+            SDL_GetError()
+        );
+        return SDL_APP_FAILURE;
+    }
+
+    SDL_Time current_time;
+    SDL_GetCurrentTime(&current_time);
+    last_draw_duration = current_time - last_draw_time;
+    last_step_duration = current_time - last_step_time;
 
     return SDL_APP_CONTINUE;
 }
@@ -306,27 +354,24 @@ SDL_AppResult SDL_AppEvent(void *, SDL_Event *event) {
     switch (event->type) {
         case SDL_EVENT_QUIT: return SDL_APP_SUCCESS;
         case SDL_EVENT_KEY_DOWN: {
-            if (event->key.key == SDLK_ESCAPE) { return SDL_APP_SUCCESS; }
-            if (event->key.key == SDLK_LEFT) { angular_velocity -= 2.0e-10; }
-            if (event->key.key == SDLK_RIGHT) { angular_velocity += 2.0e-10; }
+            switch (event->key.key) {
+                case SDLK_ESCAPE: return SDL_APP_SUCCESS;
+                case SDLK_Q: return SDL_APP_SUCCESS;
+                case SDLK_LEFT: angular_velocity -= 2.0e-10; break;
+                case SDLK_RIGHT: angular_velocity += 2.0e-10; break;
+                default: break;
+            }
             return SDL_APP_CONTINUE;
         }
-        default: return SDL_APP_CONTINUE;
+        default: break;
     }
+    return SDL_APP_CONTINUE;
 }
 
 
 SDL_AppResult SDL_AppIterate(void *) {
 
     using namespace GlobalVariables;
-
-    move_points(optimizer_points, optimizer_gradient, 1.0e-6, num_points);
-    compute_coulomb_gradient(optimizer_gradient, optimizer_points, num_points);
-
-    SDL_LockRWLockForWriting(renderer_lock);
-    quantize_points(renderer_points, optimizer_points, num_points);
-    quantize_forces(renderer_forces, optimizer_gradient, num_points);
-    SDL_UnlockRWLock(renderer_lock);
 
     int width, height;
     SDL_GetWindowSize(window, &width, &height);
@@ -337,13 +382,14 @@ SDL_AppResult SDL_AppIterate(void *) {
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
     SDL_RenderClear(renderer);
 
-    SDL_Time time;
-    SDL_GetCurrentTime(&time);
-    const SDL_Time frame_duration = time - last_draw_time;
-    angle += angular_velocity * static_cast<double>(frame_duration);
+    SDL_Time current_time;
+    SDL_GetCurrentTime(&current_time);
+    last_draw_duration = current_time - last_draw_time;
+    last_draw_time = current_time;
+
+    angle += angular_velocity * static_cast<double>(last_draw_duration);
     if (angle >= PI) { angle -= (PI + PI); }
     if (angle < -PI) { angle += (PI + PI); }
-    last_draw_time = time;
     const double sin_angle = std::sin(angle);
     const double cos_angle = std::cos(angle);
 
@@ -390,24 +436,45 @@ SDL_AppResult SDL_AppIterate(void *) {
     std::snprintf(
         debug_message_buffer,
         sizeof(debug_message_buffer),
-        "FPS:%6.0f",
-        1.0e9 / static_cast<double>(frame_duration)
+        "FPS:%5.0f",
+        1.0e9 / static_cast<double>(last_draw_duration)
     );
     SDL_RenderDebugText(renderer, 0.0f, 0.0f, debug_message_buffer);
     std::snprintf(
         debug_message_buffer,
         sizeof(debug_message_buffer),
-        "Frame time:%9.3f ms",
-        1.0e-6 * static_cast<double>(frame_duration)
+        "Angular velocity: %+.1f rad/s",
+        1.0e9 * angular_velocity
     );
     SDL_RenderDebugText(renderer, 0.0f, 10.0f, debug_message_buffer);
     std::snprintf(
         debug_message_buffer,
         sizeof(debug_message_buffer),
-        "Points drawn:%7d",
+        "Points drawn:%6d",
         num_rendered_points
     );
     SDL_RenderDebugText(renderer, 0.0f, 20.0f, debug_message_buffer);
+    std::snprintf(
+        debug_message_buffer,
+        sizeof(debug_message_buffer),
+        "Step count:%8d",
+        num_steps
+    );
+    SDL_RenderDebugText(renderer, 0.0f, 30.0f, debug_message_buffer);
+    std::snprintf(
+        debug_message_buffer,
+        sizeof(debug_message_buffer),
+        "Draw time:%9.3f ms",
+        1.0e-6 * static_cast<double>(last_draw_duration)
+    );
+    SDL_RenderDebugText(renderer, 0.0f, 40.0f, debug_message_buffer);
+    std::snprintf(
+        debug_message_buffer,
+        sizeof(debug_message_buffer),
+        "Step time:%9.3f ms",
+        1.0e-6 * static_cast<double>(last_step_duration)
+    );
+    SDL_RenderDebugText(renderer, 0.0f, 50.0f, debug_message_buffer);
     SDL_SetRenderScale(renderer, 1.0f, 1.0f);
 
     SDL_RenderPresent(renderer);
@@ -418,6 +485,8 @@ SDL_AppResult SDL_AppIterate(void *) {
 
 void SDL_AppQuit(void *, SDL_AppResult) {
     using namespace GlobalVariables;
+    quit = true;
+    SDL_WaitThread(optimizer_thread, nullptr);
     if (renderer_vertices) { std::free(renderer_vertices); }
     if (renderer_colors) { std::free(renderer_colors); }
     if (renderer_forces) { std::free(renderer_forces); }
