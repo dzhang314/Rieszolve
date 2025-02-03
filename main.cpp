@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 
 #define SDL_MAIN_USE_CALLBACKS 1
 #include <SDL3/SDL.h>
@@ -36,36 +37,6 @@ static inline SDL_FColor random_color() {
 constexpr double PI = 3.1415926535897932;
 
 
-static inline void gather_points(
-    double *__restrict__ points,
-    const double *__restrict__ points_x,
-    const double *__restrict__ points_y,
-    const double *__restrict__ points_z,
-    int num_points
-) {
-    for (int i = 0; i < num_points; i++) {
-        points[3 * i + 0] = points_x[i];
-        points[3 * i + 1] = points_y[i];
-        points[3 * i + 2] = points_z[i];
-    }
-}
-
-
-static inline void gather_forces(
-    double *__restrict__ forces,
-    const double *__restrict__ forces_x,
-    const double *__restrict__ forces_y,
-    const double *__restrict__ forces_z,
-    int num_points
-) {
-    for (int i = 0; i < num_points; i++) {
-        forces[3 * i + 0] = forces_x[i];
-        forces[3 * i + 1] = forces_y[i];
-        forces[3 * i + 2] = forces_z[i];
-    }
-}
-
-
 namespace GlobalVariables {
 
 constexpr int INITIAL_WINDOW_WIDTH = 1920;
@@ -92,8 +63,13 @@ static double *optimizer_forces_x = nullptr;
 static double *optimizer_forces_y = nullptr;
 static double *optimizer_forces_z = nullptr;
 static SDL_RWLock *renderer_lock = nullptr;
-static double *renderer_points = nullptr;
-static double *renderer_forces = nullptr;
+static double *renderer_points_x = nullptr;
+static double *renderer_points_y = nullptr;
+static double *renderer_points_z = nullptr;
+static double *renderer_forces_x = nullptr;
+static double *renderer_forces_y = nullptr;
+static double *renderer_forces_z = nullptr;
+static float *screen_points = nullptr;
 static SDL_FColor *renderer_colors = nullptr;
 static SDL_Vertex *renderer_vertices = nullptr;
 static SDL_Thread *optimizer_thread = nullptr;
@@ -126,20 +102,14 @@ static inline void update_forces() {
 
 static inline void send_data_to_renderer() {
     using namespace GlobalVariables;
-    gather_points(
-        renderer_points,
-        optimizer_points_x,
-        optimizer_points_y,
-        optimizer_points_z,
-        num_points
-    );
-    gather_forces(
-        renderer_forces,
-        optimizer_forces_x,
-        optimizer_forces_y,
-        optimizer_forces_z,
-        num_points
-    );
+    const std::size_t size =
+        static_cast<std::size_t>(num_points) * sizeof(double);
+    std::memcpy(renderer_points_x, optimizer_points_x, size);
+    std::memcpy(renderer_points_y, optimizer_points_y, size);
+    std::memcpy(renderer_points_z, optimizer_points_z, size);
+    std::memcpy(renderer_forces_x, optimizer_forces_x, size);
+    std::memcpy(renderer_forces_y, optimizer_forces_y, size);
+    std::memcpy(renderer_forces_z, optimizer_forces_z, size);
 }
 
 
@@ -262,8 +232,14 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
         return SDL_APP_FAILURE;
     }
 
-    ALLOCATE_MEMORY(renderer_points, double, 3 * num_points);
-    ALLOCATE_MEMORY(renderer_forces, double, 3 * num_points);
+    ALLOCATE_ALIGNED_MEMORY(renderer_points_x, double, num_points);
+    ALLOCATE_ALIGNED_MEMORY(renderer_points_y, double, num_points);
+    ALLOCATE_ALIGNED_MEMORY(renderer_points_z, double, num_points);
+    ALLOCATE_ALIGNED_MEMORY(renderer_forces_x, double, num_points);
+    ALLOCATE_ALIGNED_MEMORY(renderer_forces_y, double, num_points);
+    ALLOCATE_ALIGNED_MEMORY(renderer_forces_z, double, num_points);
+
+    ALLOCATE_MEMORY(screen_points, float, 3 * num_points);
     ALLOCATE_MEMORY(renderer_colors, SDL_FColor, num_points);
     ALLOCATE_MEMORY(
         renderer_vertices, SDL_Vertex, NUM_CIRCLE_VERTICES * num_points
@@ -363,23 +339,25 @@ SDL_AppResult SDL_AppIterate(void *) {
     SDL_LockRWLockForReading(renderer_lock);
     for (int i = 0; i < num_points; i++) {
         // Transform world space to view space in double precision.
-        const double x = renderer_points[3 * i + 0];
-        const double y = renderer_points[3 * i + 1];
-        const double z = renderer_points[3 * i + 2];
+        const double x = renderer_points_x[i];
+        const double y = renderer_points_y[i];
+        const double z = renderer_points_z[i];
         const float vx = static_cast<float>(x * cos_angle + z * sin_angle);
         const float vy = static_cast<float>(y);
         const float vz = static_cast<float>(z * cos_angle - x * sin_angle);
         if (vz >= 0.0f) {
             // Transform view space to screen space in single precision.
+            const float sx = origin_x + scale * vx;
+            const float sy = origin_y - scale * vy;
             // Simulate perspective by making closer points larger.
             // We should use a proper perspective transformation
             // in the future, but this is good enough for now.
+            const float r = 3.0f * vz + 1.0f;
+            screen_points[3 * i + 0] = sx;
+            screen_points[3 * i + 1] = sy;
+            screen_points[3 * i + 2] = r;
             construct_circle_vertices(
-                vertex_pointer,
-                origin_x + scale * vx,
-                origin_y - scale * vy,
-                3.0f * vz + 1.0f,
-                renderer_colors[i]
+                vertex_pointer, sx, sy, r, renderer_colors[i]
             );
             ++num_rendered_points;
             vertex_pointer += NUM_CIRCLE_VERTICES;
@@ -469,8 +447,13 @@ void SDL_AppQuit(void *, SDL_AppResult) {
     if (optimizer_thread) { SDL_WaitThread(optimizer_thread, nullptr); }
     FREE_MEMORY(renderer_vertices);
     FREE_MEMORY(renderer_colors);
-    FREE_MEMORY(renderer_forces);
-    FREE_MEMORY(renderer_points);
+    FREE_MEMORY(screen_points);
+    FREE_ALIGNED_MEMORY(renderer_forces_z);
+    FREE_ALIGNED_MEMORY(renderer_forces_y);
+    FREE_ALIGNED_MEMORY(renderer_forces_x);
+    FREE_ALIGNED_MEMORY(renderer_points_z);
+    FREE_ALIGNED_MEMORY(renderer_points_y);
+    FREE_ALIGNED_MEMORY(renderer_points_x);
     if (renderer_lock) { SDL_DestroyRWLock(renderer_lock); }
     FREE_ALIGNED_MEMORY(optimizer_forces_z);
     FREE_ALIGNED_MEMORY(optimizer_forces_y);
