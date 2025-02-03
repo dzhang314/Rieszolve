@@ -10,13 +10,13 @@ static inline double compute_coulomb_energy(
     using std::sqrt;
     double energy = 0.0;
 #pragma omp parallel for reduction(+ : energy) schedule(static)
-    for (int i = 0; i < num_points; i++) {
+    for (int i = 0; i < num_points; ++i) {
         const double xi = points_x[i];
         const double yi = points_y[i];
         const double zi = points_z[i];
 #pragma omp simd reduction(+ : energy) simdlen(8)                              \
     aligned(points_x, points_y, points_z : 64)
-        for (int j = 0; j < num_points; j++) {
+        for (int j = 0; j < num_points; ++j) {
             if (i != j) {
                 const double delta_x = xi - points_x[j];
                 const double delta_y = yi - points_y[j];
@@ -43,7 +43,7 @@ static inline double compute_coulomb_forces(
     using std::sqrt;
     double energy = 0.0;
 #pragma omp parallel for reduction(+ : energy) schedule(static)
-    for (int i = 0; i < num_points; i++) {
+    for (int i = 0; i < num_points; ++i) {
         const double xi = points_x[i];
         const double yi = points_y[i];
         const double zi = points_z[i];
@@ -52,7 +52,7 @@ static inline double compute_coulomb_forces(
         double fz = 0.0;
 #pragma omp simd reduction(+ : energy, fx, fy, fz) simdlen(8)                  \
     aligned(forces_x, forces_y, forces_z, points_x, points_y, points_z : 64)
-        for (int j = 0; j < num_points; j++) {
+        for (int j = 0; j < num_points; ++j) {
             if (i != j) {
                 const double delta_x = xi - points_x[j];
                 const double delta_y = yi - points_y[j];
@@ -88,7 +88,7 @@ static inline double constrain_forces(
     double force_norm_squared = 0.0;
 #pragma omp simd reduction(+ : force_norm_squared) simdlen(8)                  \
     aligned(forces_x, forces_y, forces_z, points_x, points_y, points_z : 64)
-    for (int i = 0; i < num_points; i++) {
+    for (int i = 0; i < num_points; ++i) {
         const double fx = forces_x[i];
         const double fy = forces_y[i];
         const double fz = forces_z[i];
@@ -122,7 +122,7 @@ static inline void move_points(
     using std::sqrt;
 #pragma omp simd simdlen(8)                                                    \
     aligned(points_x, points_y, points_z, step_x, step_y, step_z : 64)
-    for (int i = 0; i < num_points; i++) {
+    for (int i = 0; i < num_points; ++i) {
         const double x = points_x[i] + step_size * step_x[i];
         const double y = points_y[i] + step_size * step_y[i];
         const double z = points_z[i] + step_size * step_z[i];
@@ -152,7 +152,7 @@ static inline void move_points(
 #pragma omp simd simdlen(8)                                                    \
     aligned(new_points_x, new_points_y, new_points_z : 64)                     \
     aligned(points_x, points_y, points_z, step_x, step_y, step_z : 64)
-    for (int i = 0; i < num_points; i++) {
+    for (int i = 0; i < num_points; ++i) {
         const double x = points_x[i] + step_size * step_x[i];
         const double y = points_y[i] + step_size * step_y[i];
         const double z = points_z[i] + step_size * step_z[i];

@@ -133,7 +133,7 @@ static inline int SDLCALL run_optimizer(void *) {
         send_data_to_renderer();
         SDL_UnlockRWLock(renderer_lock);
 
-        num_steps++;
+        ++num_steps;
         SDL_Time current_time;
         SDL_GetCurrentTime(&current_time);
         last_step_duration = current_time - last_step_time;
@@ -245,7 +245,7 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
         renderer_vertices, SDL_Vertex, NUM_CIRCLE_VERTICES * num_points
     );
 
-    for (int i = 0; i < num_points; i++) {
+    for (int i = 0; i < num_points; ++i) {
         double x, y, z;
         while (true) {
             x = 2.0 * static_cast<double>(rand_float()) - 1.0;
@@ -333,37 +333,51 @@ SDL_AppResult SDL_AppIterate(void *) {
     if (angle < -PI) { angle += (PI + PI); }
     const double sin_angle = std::sin(angle);
     const double cos_angle = std::cos(angle);
-
-    int num_rendered_points = 0;
-    SDL_Vertex *vertex_pointer = renderer_vertices;
     SDL_LockRWLockForReading(renderer_lock);
-    for (int i = 0; i < num_points; i++) {
+    for (int i = 0; i < num_points; ++i) {
         // Transform world space to view space in double precision.
         const double x = renderer_points_x[i];
         const double y = renderer_points_y[i];
         const double z = renderer_points_z[i];
-        const float vx = static_cast<float>(x * cos_angle + z * sin_angle);
-        const float vy = static_cast<float>(y);
-        const float vz = static_cast<float>(z * cos_angle - x * sin_angle);
-        if (vz >= 0.0f) {
+        const double vx = x * cos_angle + z * sin_angle;
+        const double vy = y;
+        const double vz = z * cos_angle - x * sin_angle;
+        if (!std::signbit(vz)) {
             // Transform view space to screen space in single precision.
-            const float sx = origin_x + scale * vx;
-            const float sy = origin_y - scale * vy;
+            screen_points[3 * i + 0] =
+                origin_x + scale * static_cast<float>(vx);
+            screen_points[3 * i + 1] =
+                origin_y - scale * static_cast<float>(vy);
             // Simulate perspective by making closer points larger.
             // We should use a proper perspective transformation
             // in the future, but this is good enough for now.
-            const float r = 3.0f * vz + 1.0f;
-            screen_points[3 * i + 0] = sx;
-            screen_points[3 * i + 1] = sy;
-            screen_points[3 * i + 2] = r;
-            construct_circle_vertices(
-                vertex_pointer, sx, sy, r, renderer_colors[i]
-            );
-            ++num_rendered_points;
-            vertex_pointer += NUM_CIRCLE_VERTICES;
+            screen_points[3 * i + 2] = 6.0f * static_cast<float>(vz) + 2.0f;
+        } else {
+            screen_points[3 * i + 0] = NAN;
+            screen_points[3 * i + 1] = NAN;
+            screen_points[3 * i + 2] = NAN;
         }
     }
     SDL_UnlockRWLock(renderer_lock);
+
+    int num_rendered_points = 0;
+    SDL_Vertex *vertex_pointer = renderer_vertices;
+    for (int i = 0; i < num_points; ++i) {
+        bool valid = true;
+        const float sx = screen_points[3 * i + 0];
+        valid &= !std::isnan(sx);
+        const float sy = screen_points[3 * i + 1];
+        valid &= !std::isnan(sy);
+        const float r = screen_points[3 * i + 2];
+        valid &= !std::isnan(r);
+        if (valid) {
+            ++num_rendered_points;
+            construct_circle_vertices(
+                vertex_pointer, sx, sy, r, renderer_colors[i]
+            );
+            vertex_pointer += NUM_CIRCLE_VERTICES;
+        }
+    }
 
     SDL_RenderGeometry(
         renderer,
