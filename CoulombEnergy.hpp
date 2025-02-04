@@ -1,6 +1,31 @@
 #include <cmath>
 
 
+struct HighPrecisionAccumulator {
+
+    double sum;
+    double correction;
+
+    constexpr HighPrecisionAccumulator() noexcept
+        : sum(0.0)
+        , correction(0.0) {}
+
+    constexpr double to_double() const noexcept { return sum + correction; }
+
+    constexpr void add(double x) noexcept {
+        const double new_sum = sum + x;
+        const double x_eff = new_sum - sum;
+        const double sum_eff = new_sum - x_eff;
+        const double x_err = x - x_eff;
+        const double sum_err = sum - sum_eff;
+        const double err = x_err + sum_err;
+        sum = new_sum;
+        correction += err;
+    }
+
+}; // struct HighPrecisionAccumulator
+
+
 static inline double compute_coulomb_energy(
     const double *__restrict__ points_x,
     const double *__restrict__ points_y,
@@ -8,14 +33,11 @@ static inline double compute_coulomb_energy(
     int num_points
 ) {
     using std::sqrt;
-    double energy = 0.0;
-#pragma omp parallel for reduction(+ : energy) schedule(static)
+    HighPrecisionAccumulator energy;
     for (int i = 0; i < num_points; ++i) {
         const double xi = points_x[i];
         const double yi = points_y[i];
         const double zi = points_z[i];
-#pragma omp simd reduction(+ : energy) simdlen(8)                              \
-    aligned(points_x, points_y, points_z : 64)
         for (int j = 0; j < num_points; ++j) {
             if (i != j) {
                 const double delta_x = xi - points_x[j];
@@ -23,11 +45,11 @@ static inline double compute_coulomb_energy(
                 const double delta_z = zi - points_z[j];
                 const double norm_squared =
                     delta_x * delta_x + delta_y * delta_y + delta_z * delta_z;
-                energy += 1.0 / sqrt(norm_squared);
+                energy.add(1.0 / sqrt(norm_squared));
             }
         }
     }
-    return energy;
+    return energy.to_double();
 }
 
 
@@ -41,17 +63,14 @@ static inline double compute_coulomb_forces(
     int num_points
 ) {
     using std::sqrt;
-    double energy = 0.0;
-#pragma omp parallel for reduction(+ : energy) schedule(static)
+    HighPrecisionAccumulator energy;
     for (int i = 0; i < num_points; ++i) {
         const double xi = points_x[i];
         const double yi = points_y[i];
         const double zi = points_z[i];
-        double fx = 0.0;
-        double fy = 0.0;
-        double fz = 0.0;
-#pragma omp simd reduction(+ : energy, fx, fy, fz) simdlen(8)                  \
-    aligned(forces_x, forces_y, forces_z, points_x, points_y, points_z : 64)
+        HighPrecisionAccumulator fx;
+        HighPrecisionAccumulator fy;
+        HighPrecisionAccumulator fz;
         for (int j = 0; j < num_points; ++j) {
             if (i != j) {
                 const double delta_x = xi - points_x[j];
@@ -60,18 +79,18 @@ static inline double compute_coulomb_forces(
                 const double norm_squared =
                     delta_x * delta_x + delta_y * delta_y + delta_z * delta_z;
                 const double inv_norm = 1.0 / sqrt(norm_squared);
-                energy += inv_norm;
+                energy.add(inv_norm);
                 const double inv_norm_cubed = inv_norm / norm_squared;
-                fx += delta_x * inv_norm_cubed;
-                fy += delta_y * inv_norm_cubed;
-                fz += delta_z * inv_norm_cubed;
+                fx.add(delta_x * inv_norm_cubed);
+                fy.add(delta_y * inv_norm_cubed);
+                fz.add(delta_z * inv_norm_cubed);
             }
         }
-        forces_x[i] = fx;
-        forces_y[i] = fy;
-        forces_z[i] = fz;
+        forces_x[i] = fx.to_double();
+        forces_y[i] = fy.to_double();
+        forces_z[i] = fz.to_double();
     }
-    return energy;
+    return energy.to_double();
 }
 
 
@@ -85,9 +104,7 @@ static inline double constrain_forces(
     int num_points
 ) {
     using std::sqrt;
-    double force_norm_squared = 0.0;
-#pragma omp simd reduction(+ : force_norm_squared) simdlen(8)                  \
-    aligned(forces_x, forces_y, forces_z, points_x, points_y, points_z : 64)
+    HighPrecisionAccumulator force_norm_squared;
     for (int i = 0; i < num_points; ++i) {
         const double fx = forces_x[i];
         const double fy = forces_y[i];
@@ -102,10 +119,11 @@ static inline double constrain_forces(
         forces_x[i] = proj_x;
         forces_y[i] = proj_y;
         forces_z[i] = proj_z;
-        force_norm_squared +=
-            proj_x * proj_x + proj_y * proj_y + proj_z * proj_z;
+        force_norm_squared.add(
+            proj_x * proj_x + proj_y * proj_y + proj_z * proj_z
+        );
     }
-    return sqrt(force_norm_squared);
+    return sqrt(force_norm_squared.to_double());
 }
 
 
