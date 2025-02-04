@@ -55,17 +55,16 @@ void move_points(
 );
 
 
-double evaluate_step(
-    double *__restrict__ new_points_x,
-    double *__restrict__ new_points_y,
-    double *__restrict__ new_points_z,
-    const double *__restrict__ points_x,
-    const double *__restrict__ points_y,
-    const double *__restrict__ points_z,
-    const double *__restrict__ step_x,
-    const double *__restrict__ step_y,
-    const double *__restrict__ step_z,
-    double step_size,
+void compute_step_direction(
+    double *__restrict__ step_x,
+    double *__restrict__ step_y,
+    double *__restrict__ step_z,
+    const double *__restrict__ forces_x,
+    const double *__restrict__ forces_y,
+    const double *__restrict__ forces_z,
+    const double *__restrict__ prev_forces_x,
+    const double *__restrict__ prev_forces_y,
+    const double *__restrict__ prev_forces_z,
     int num_points
 );
 

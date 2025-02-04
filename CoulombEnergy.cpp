@@ -392,7 +392,7 @@ void move_points(
 }
 
 
-double evaluate_step(
+static inline double evaluate_step(
     double *__restrict__ new_points_x,
     double *__restrict__ new_points_y,
     double *__restrict__ new_points_z,
@@ -421,6 +421,75 @@ double evaluate_step(
     return compute_coulomb_energy(
         new_points_x, new_points_y, new_points_z, num_points
     );
+}
+
+
+static inline double dot_product(
+    const double *__restrict__ vx,
+    const double *__restrict__ vy,
+    const double *__restrict__ vz,
+    const double *__restrict__ wx,
+    const double *__restrict__ wy,
+    const double *__restrict__ wz,
+    int num_points
+) {
+    HighPrecisionAccumulator result;
+    for (int i = 0; i < num_points; ++i) { result.add(vx[i] * wx[i]); }
+    for (int i = 0; i < num_points; ++i) { result.add(vy[i] * wy[i]); }
+    for (int i = 0; i < num_points; ++i) { result.add(vz[i] * wz[i]); }
+    return result.to_double();
+}
+
+
+void compute_step_direction(
+    double *__restrict__ step_x,
+    double *__restrict__ step_y,
+    double *__restrict__ step_z,
+    const double *__restrict__ forces_x,
+    const double *__restrict__ forces_y,
+    const double *__restrict__ forces_z,
+    const double *__restrict__ prev_forces_x,
+    const double *__restrict__ prev_forces_y,
+    const double *__restrict__ prev_forces_z,
+    int num_points
+) {
+    const double current_norm = dot_product(
+        forces_x, forces_y, forces_z, forces_x, forces_y, forces_z, num_points
+    );
+    const double prev_norm = dot_product(
+        prev_forces_x,
+        prev_forces_y,
+        prev_forces_z,
+        prev_forces_x,
+        prev_forces_y,
+        prev_forces_z,
+        num_points
+    );
+    const double overlap = dot_product(
+        forces_x,
+        forces_y,
+        forces_z,
+        prev_forces_x,
+        prev_forces_y,
+        prev_forces_z,
+        num_points
+    );
+    if (current_norm > overlap) {
+        const double beta = (current_norm - overlap) / prev_norm;
+        for (int i = 0; i < num_points; ++i) {
+            step_x[i] = fma(beta, step_x[i], forces_x[i]);
+        }
+        for (int i = 0; i < num_points; ++i) {
+            step_y[i] = fma(beta, step_y[i], forces_y[i]);
+        }
+        for (int i = 0; i < num_points; ++i) {
+            step_z[i] = fma(beta, step_z[i], forces_z[i]);
+        }
+    } else {
+        for (int i = 0; i < num_points; ++i) { step_x[i] = forces_x[i]; }
+        for (int i = 0; i < num_points; ++i) { step_y[i] = forces_y[i]; }
+        for (int i = 0; i < num_points; ++i) { step_z[i] = forces_z[i]; }
+    }
 }
 
 

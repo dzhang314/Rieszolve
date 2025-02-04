@@ -44,7 +44,7 @@ constexpr int INITIAL_WINDOW_WIDTH = 1920;
 constexpr int INITIAL_WINDOW_HEIGHT = 1080;
 
 static int num_points = 0;
-static int num_steps = 0;
+static int num_iterations = 0;
 static SDL_Time last_draw_time = 0;
 static SDL_Time last_step_time = 0;
 static SDL_Time last_draw_duration = 0;
@@ -54,7 +54,7 @@ static int angular_velocity = 2;
 static double step_size = DBL_EPSILON;
 static double energy = 0.0;
 static double force_norm = 0.0;
-static bool render_forces = true;
+static bool render_forces = false;
 static bool quit = false;
 
 static SDL_Window *window = nullptr;
@@ -65,6 +65,12 @@ static double *optimizer_points_z = nullptr;
 static double *optimizer_forces_x = nullptr;
 static double *optimizer_forces_y = nullptr;
 static double *optimizer_forces_z = nullptr;
+static double *optimizer_prev_forces_x = nullptr;
+static double *optimizer_prev_forces_y = nullptr;
+static double *optimizer_prev_forces_z = nullptr;
+static double *optimizer_step_x = nullptr;
+static double *optimizer_step_y = nullptr;
+static double *optimizer_step_z = nullptr;
 static double *optimizer_temp_x = nullptr;
 static double *optimizer_temp_y = nullptr;
 static double *optimizer_temp_z = nullptr;
@@ -86,6 +92,11 @@ static SDL_Thread *optimizer_thread = nullptr;
 
 static inline void update_forces() {
     using namespace GlobalVariables;
+    const std::size_t size =
+        static_cast<std::size_t>(num_points) * sizeof(double);
+    std::memcpy(optimizer_prev_forces_x, optimizer_forces_x, size);
+    std::memcpy(optimizer_prev_forces_y, optimizer_forces_y, size);
+    std::memcpy(optimizer_prev_forces_z, optimizer_forces_z, size);
     energy = compute_coulomb_forces(
         optimizer_forces_x,
         optimizer_forces_y,
@@ -124,6 +135,18 @@ static inline int SDLCALL run_optimizer(void *) {
     using namespace GlobalVariables;
     while (!quit) {
 
+        compute_step_direction(
+            optimizer_step_x,
+            optimizer_step_y,
+            optimizer_step_z,
+            optimizer_forces_x,
+            optimizer_forces_y,
+            optimizer_forces_z,
+            optimizer_prev_forces_x,
+            optimizer_prev_forces_y,
+            optimizer_prev_forces_z,
+            num_points
+        );
         quadratic_line_search(
             optimizer_points_x,
             optimizer_points_y,
@@ -132,9 +155,9 @@ static inline int SDLCALL run_optimizer(void *) {
             optimizer_temp_y,
             optimizer_temp_z,
             step_size,
-            optimizer_forces_x,
-            optimizer_forces_y,
-            optimizer_forces_z,
+            optimizer_step_x,
+            optimizer_step_y,
+            optimizer_step_z,
             energy,
             num_points
         );
@@ -144,7 +167,7 @@ static inline int SDLCALL run_optimizer(void *) {
         send_data_to_renderer();
         SDL_UnlockRWLock(renderer_lock);
 
-        ++num_steps;
+        if (step_size > 0.0) { ++num_iterations; }
         SDL_Time current_time;
         SDL_GetCurrentTime(&current_time);
         last_step_duration = current_time - last_step_time;
@@ -236,6 +259,12 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
     ALLOCATE_ALIGNED_MEMORY(optimizer_forces_x, double, num_points);
     ALLOCATE_ALIGNED_MEMORY(optimizer_forces_y, double, num_points);
     ALLOCATE_ALIGNED_MEMORY(optimizer_forces_z, double, num_points);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_prev_forces_x, double, num_points);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_prev_forces_y, double, num_points);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_prev_forces_z, double, num_points);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_step_x, double, num_points);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_step_y, double, num_points);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_step_z, double, num_points);
     ALLOCATE_ALIGNED_MEMORY(optimizer_temp_x, double, num_points);
     ALLOCATE_ALIGNED_MEMORY(optimizer_temp_y, double, num_points);
     ALLOCATE_ALIGNED_MEMORY(optimizer_temp_z, double, num_points);
@@ -282,6 +311,14 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
     }
 
     update_forces();
+    const std::size_t size =
+        static_cast<std::size_t>(num_points) * sizeof(double);
+    std::memcpy(optimizer_prev_forces_x, optimizer_forces_x, size);
+    std::memcpy(optimizer_prev_forces_y, optimizer_forces_y, size);
+    std::memcpy(optimizer_prev_forces_z, optimizer_forces_z, size);
+    std::memcpy(optimizer_step_x, optimizer_forces_x, size);
+    std::memcpy(optimizer_step_y, optimizer_forces_y, size);
+    std::memcpy(optimizer_step_z, optimizer_forces_z, size);
     send_data_to_renderer();
 
     optimizer_thread =
@@ -470,8 +507,8 @@ SDL_AppResult SDL_AppIterate(void *) {
     std::snprintf(
         debug_message_buffer,
         sizeof(debug_message_buffer),
-        "Step count:%8d",
-        num_steps
+        "Iteration count:%8d",
+        num_iterations
     );
     SDL_RenderDebugText(renderer, 0.0f, 30.0f, debug_message_buffer);
     std::snprintf(
@@ -527,6 +564,12 @@ void SDL_AppQuit(void *, SDL_AppResult) {
     FREE_ALIGNED_MEMORY(optimizer_temp_z);
     FREE_ALIGNED_MEMORY(optimizer_temp_y);
     FREE_ALIGNED_MEMORY(optimizer_temp_x);
+    FREE_ALIGNED_MEMORY(optimizer_step_z);
+    FREE_ALIGNED_MEMORY(optimizer_step_y);
+    FREE_ALIGNED_MEMORY(optimizer_step_x);
+    FREE_ALIGNED_MEMORY(optimizer_prev_forces_z);
+    FREE_ALIGNED_MEMORY(optimizer_prev_forces_y);
+    FREE_ALIGNED_MEMORY(optimizer_prev_forces_x);
     FREE_ALIGNED_MEMORY(optimizer_forces_z);
     FREE_ALIGNED_MEMORY(optimizer_forces_y);
     FREE_ALIGNED_MEMORY(optimizer_forces_x);
