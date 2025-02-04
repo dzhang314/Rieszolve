@@ -167,7 +167,9 @@ static inline int SDLCALL run_optimizer(void *) {
         send_data_to_renderer();
         SDL_UnlockRWLock(renderer_lock);
 
-        if (step_size > 0.0) { ++num_iterations; }
+        if (!(step_size > 0.0)) { break; }
+
+        ++num_iterations;
         SDL_Time current_time;
         SDL_GetCurrentTime(&current_time);
         last_step_duration = current_time - last_step_time;
