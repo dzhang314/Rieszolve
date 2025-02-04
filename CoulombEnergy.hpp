@@ -1,26 +1,35 @@
 #include <cmath>
 
 
+static inline void two_sum(double &s, double &e, double x, double y) {
+    s = x + y;
+    const double x_eff = s - y;
+    const double y_eff = s - x_eff;
+    const double x_err = x - x_eff;
+    const double y_err = y - y_eff;
+    e = x_err + y_err;
+}
+
+
+static inline void two_sum(double &s, double &e) {
+    const double x = s;
+    const double y = e;
+    two_sum(s, e, x, y);
+}
+
+
 struct HighPrecisionAccumulator {
 
-    double sum;
-    double correction;
+    double terms[2];
 
     constexpr HighPrecisionAccumulator() noexcept
-        : sum(0.0)
-        , correction(0.0) {}
+        : terms{0.0, 0.0} {}
 
-    constexpr double to_double() const noexcept { return sum + correction; }
+    constexpr double to_double() const noexcept { return terms[0] + terms[1]; }
 
     constexpr void add(double x) noexcept {
-        const double new_sum = sum + x;
-        const double x_eff = new_sum - sum;
-        const double sum_eff = new_sum - x_eff;
-        const double x_err = x - x_eff;
-        const double sum_err = sum - sum_eff;
-        const double err = x_err + sum_err;
-        sum = new_sum;
-        correction += err;
+        two_sum(terms[0], x);
+        two_sum(terms[1], x);
     }
 
 }; // struct HighPrecisionAccumulator
