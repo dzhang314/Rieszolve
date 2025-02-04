@@ -52,6 +52,8 @@ static SDL_Time last_step_duration = 0;
 static double angle = 0.0;
 static int angular_velocity = 0;
 static double step_size = DBL_EPSILON;
+static double step_norm = 0.0;
+static double step_length = 0.0;
 static double energy = 0.0;
 static double force_norm = 0.0;
 static bool render_forces = false;
@@ -90,14 +92,14 @@ static SDL_Thread *optimizer_thread = nullptr;
 } // namespace GlobalVariables
 
 
-static inline void update_forces() {
+static inline double update_forces() {
     using namespace GlobalVariables;
     const std::size_t size =
         static_cast<std::size_t>(num_points) * sizeof(double);
     std::memcpy(optimizer_prev_forces_x, optimizer_forces_x, size);
     std::memcpy(optimizer_prev_forces_y, optimizer_forces_y, size);
     std::memcpy(optimizer_prev_forces_z, optimizer_forces_z, size);
-    energy = compute_coulomb_forces(
+    compute_coulomb_forces(
         optimizer_forces_x,
         optimizer_forces_y,
         optimizer_forces_z,
@@ -106,7 +108,7 @@ static inline void update_forces() {
         optimizer_points_z,
         num_points
     );
-    force_norm = constrain_forces(
+    return constrain_forces(
         optimizer_forces_x,
         optimizer_forces_y,
         optimizer_forces_z,
@@ -135,7 +137,10 @@ static inline int SDLCALL run_optimizer(void *) {
     using namespace GlobalVariables;
     while (!quit) {
 
-        compute_step_direction(
+        const double prev_step_size = step_size;
+        const double prev_step_length = step_length;
+
+        step_norm = compute_step_direction(
             optimizer_step_x,
             optimizer_step_y,
             optimizer_step_z,
@@ -147,7 +152,7 @@ static inline int SDLCALL run_optimizer(void *) {
             optimizer_prev_forces_z,
             num_points
         );
-        quadratic_line_search(
+        energy = quadratic_line_search(
             optimizer_points_x,
             optimizer_points_y,
             optimizer_points_z,
@@ -161,13 +166,18 @@ static inline int SDLCALL run_optimizer(void *) {
             energy,
             num_points
         );
-        update_forces();
+        step_length = step_size * step_norm;
+        force_norm = update_forces();
 
         SDL_LockRWLockForWriting(renderer_lock);
         send_data_to_renderer();
         SDL_UnlockRWLock(renderer_lock);
 
-        if (!(step_size > 0.0)) { break; }
+        if (!(step_size > 0.0)) {
+            step_size = prev_step_size;
+            step_length = prev_step_length;
+            break;
+        }
 
         ++num_iterations;
         SDL_Time current_time;
@@ -315,7 +325,10 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
         renderer_colors[i] = random_color();
     }
 
-    update_forces();
+    energy = compute_coulomb_energy(
+        optimizer_points_x, optimizer_points_y, optimizer_points_z, num_points
+    );
+    force_norm = update_forces();
     const std::size_t size =
         static_cast<std::size_t>(num_points) * sizeof(double);
     std::memcpy(optimizer_prev_forces_x, optimizer_forces_x, size);
@@ -533,17 +546,31 @@ SDL_AppResult SDL_AppIterate(void *) {
     std::snprintf(
         debug_message_buffer,
         sizeof(debug_message_buffer),
-        "Coulomb energy: %.17e",
+        "Coulomb energy: %.15e",
         energy
     );
     SDL_RenderDebugText(renderer, 0.0f, 60.0f, debug_message_buffer);
     std::snprintf(
         debug_message_buffer,
         sizeof(debug_message_buffer),
-        "RMS force: %.17e",
+        "RMS force:      %.15e",
         rms_force
     );
     SDL_RenderDebugText(renderer, 0.0f, 70.0f, debug_message_buffer);
+    std::snprintf(
+        debug_message_buffer,
+        sizeof(debug_message_buffer),
+        "Step size:      %.15e",
+        step_size
+    );
+    SDL_RenderDebugText(renderer, 0.0f, 80.0f, debug_message_buffer);
+    std::snprintf(
+        debug_message_buffer,
+        sizeof(debug_message_buffer),
+        "Step length:    %.15e",
+        step_length
+    );
+    SDL_RenderDebugText(renderer, 0.0f, 90.0f, debug_message_buffer);
     SDL_SetRenderScale(renderer, 1.0f, 1.0f);
 
     SDL_RenderPresent(renderer);

@@ -6,7 +6,7 @@ double compute_coulomb_energy(
 );
 
 
-double compute_coulomb_forces(
+void compute_coulomb_forces(
     double *__restrict__ forces_x,
     double *__restrict__ forces_y,
     double *__restrict__ forces_z,
@@ -55,7 +55,7 @@ void move_points(
 );
 
 
-void compute_step_direction(
+double compute_step_direction(
     double *__restrict__ step_x,
     double *__restrict__ step_y,
     double *__restrict__ step_z,
