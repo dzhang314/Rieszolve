@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cfloat>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -50,7 +51,7 @@ static SDL_Time last_draw_duration = 0;
 static SDL_Time last_step_duration = 0;
 static double angle = 0.0;
 static int angular_velocity = 2;
-static double step_size = 1.0e-6;
+static double step_size = DBL_EPSILON;
 static double energy = 0.0;
 static double force_norm = 0.0;
 static bool render_forces = true;
@@ -64,6 +65,9 @@ static double *optimizer_points_z = nullptr;
 static double *optimizer_forces_x = nullptr;
 static double *optimizer_forces_y = nullptr;
 static double *optimizer_forces_z = nullptr;
+static double *optimizer_temp_x = nullptr;
+static double *optimizer_temp_y = nullptr;
+static double *optimizer_temp_z = nullptr;
 static SDL_RWLock *renderer_lock = nullptr;
 static double *renderer_points_x = nullptr;
 static double *renderer_points_y = nullptr;
@@ -120,14 +124,18 @@ static inline int SDLCALL run_optimizer(void *) {
     using namespace GlobalVariables;
     while (!quit) {
 
-        move_points(
+        quadratic_line_search(
             optimizer_points_x,
             optimizer_points_y,
             optimizer_points_z,
+            optimizer_temp_x,
+            optimizer_temp_y,
+            optimizer_temp_z,
+            step_size,
             optimizer_forces_x,
             optimizer_forces_y,
             optimizer_forces_z,
-            step_size,
+            energy,
             num_points
         );
         update_forces();
@@ -228,6 +236,9 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
     ALLOCATE_ALIGNED_MEMORY(optimizer_forces_x, double, num_points);
     ALLOCATE_ALIGNED_MEMORY(optimizer_forces_y, double, num_points);
     ALLOCATE_ALIGNED_MEMORY(optimizer_forces_z, double, num_points);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_temp_x, double, num_points);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_temp_y, double, num_points);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_temp_z, double, num_points);
 
     renderer_lock = SDL_CreateRWLock();
     if (!renderer_lock) {
@@ -305,8 +316,6 @@ SDL_AppResult SDL_AppEvent(void *, SDL_Event *event) {
                 case SDLK_Q: return SDL_APP_SUCCESS;
                 case SDLK_LEFT: angular_velocity -= 2; break;
                 case SDLK_RIGHT: angular_velocity += 2; break;
-                case SDLK_EQUALS: step_size *= 2.0; break;
-                case SDLK_MINUS: step_size *= 0.5; break;
                 case SDLK_F: render_forces = !render_forces; break;
                 default: break;
             }
@@ -515,6 +524,9 @@ void SDL_AppQuit(void *, SDL_AppResult) {
     FREE_ALIGNED_MEMORY(renderer_points_y);
     FREE_ALIGNED_MEMORY(renderer_points_x);
     if (renderer_lock) { SDL_DestroyRWLock(renderer_lock); }
+    FREE_ALIGNED_MEMORY(optimizer_temp_z);
+    FREE_ALIGNED_MEMORY(optimizer_temp_y);
+    FREE_ALIGNED_MEMORY(optimizer_temp_x);
     FREE_ALIGNED_MEMORY(optimizer_forces_z);
     FREE_ALIGNED_MEMORY(optimizer_forces_y);
     FREE_ALIGNED_MEMORY(optimizer_forces_x);

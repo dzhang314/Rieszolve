@@ -4,6 +4,12 @@
 using std::fma;
 using std::sqrt;
 
+#include <cstdlib>
+using std::size_t;
+
+#include <cstring>
+using std::memcpy;
+
 #ifdef __AVX512F__
 #define RIESZOLVE_USE_AVX512
 #endif
@@ -415,4 +421,172 @@ double evaluate_step(
     return compute_coulomb_energy(
         new_points_x, new_points_y, new_points_z, num_points
     );
+}
+
+
+double quadratic_line_search(
+    double *__restrict__ points_x,
+    double *__restrict__ points_y,
+    double *__restrict__ points_z,
+    double *__restrict__ temp_points_x,
+    double *__restrict__ temp_points_y,
+    double *__restrict__ temp_points_z,
+    double &step_size,
+    const double *__restrict__ step_x,
+    const double *__restrict__ step_y,
+    const double *__restrict__ step_z,
+    double initial_energy,
+    int num_points
+) {
+    if (!(step_size > 0.0)) {
+        step_size = 0.0;
+        return initial_energy;
+    }
+    const size_t size = static_cast<size_t>(num_points) * sizeof(double);
+    const double trial_energy = evaluate_step(
+        temp_points_x,
+        temp_points_y,
+        temp_points_z,
+        points_x,
+        points_y,
+        points_z,
+        step_x,
+        step_y,
+        step_z,
+        step_size,
+        num_points
+    );
+    if (trial_energy <= initial_energy) { // f1 <= f0
+        const double f0 = initial_energy;
+        double x1 = step_size;
+        double f1 = trial_energy;
+        while (true) {
+            const double x2 = x1 + x1;
+            const double f2 = evaluate_step(
+                temp_points_x,
+                temp_points_y,
+                temp_points_z,
+                points_x,
+                points_y,
+                points_z,
+                step_x,
+                step_y,
+                step_z,
+                x2,
+                num_points
+            );
+            if (f2 > f1) {
+                const double delta_0 = f0 - f1;
+                const double delta_1 = f2 - f1;
+                const double delta_sum = delta_0 + delta_1;
+                const double numerator = (delta_0 + delta_0) + delta_sum;
+                const double denominator = delta_sum + delta_sum;
+                const double xq = x1 * (numerator / denominator);
+                const double fq = evaluate_step(
+                    temp_points_x,
+                    temp_points_y,
+                    temp_points_z,
+                    points_x,
+                    points_y,
+                    points_z,
+                    step_x,
+                    step_y,
+                    step_z,
+                    xq,
+                    num_points
+                );
+                if (fq < f1) {
+                    step_size = xq;
+                    memcpy(points_x, temp_points_x, size);
+                    memcpy(points_y, temp_points_y, size);
+                    memcpy(points_z, temp_points_z, size);
+                    return fq;
+                } else if (f1 < f0) {
+                    step_size = x1;
+                    move_points(
+                        points_x,
+                        points_y,
+                        points_z,
+                        step_x,
+                        step_y,
+                        step_z,
+                        step_size,
+                        num_points
+                    );
+                    return f1;
+                } else {
+                    step_size = 0.0;
+                    return f0;
+                }
+            }
+            x1 = x2;
+            f1 = f2;
+        }
+    } else { // f2 > f0 (or something is NaN)
+        const double f0 = initial_energy;
+        double x2 = step_size;
+        double f2 = trial_energy;
+        while (true) {
+            const double x1 = 0.5 * x2;
+            const double f1 = evaluate_step(
+                temp_points_x,
+                temp_points_y,
+                temp_points_z,
+                points_x,
+                points_y,
+                points_z,
+                step_x,
+                step_y,
+                step_z,
+                x1,
+                num_points
+            );
+            if (f1 <= f0) {
+                const double delta_0 = f0 - f1;
+                const double delta_1 = f2 - f1;
+                const double delta_sum = delta_0 + delta_1;
+                const double numerator = (delta_0 + delta_0) + delta_sum;
+                const double denominator = delta_sum + delta_sum;
+                const double xq = x1 * (numerator / denominator);
+                const double fq = evaluate_step(
+                    temp_points_x,
+                    temp_points_y,
+                    temp_points_z,
+                    points_x,
+                    points_y,
+                    points_z,
+                    step_x,
+                    step_y,
+                    step_z,
+                    xq,
+                    num_points
+                );
+                if (fq < f1) {
+                    step_size = xq;
+                    memcpy(points_x, temp_points_x, size);
+                    memcpy(points_y, temp_points_y, size);
+                    memcpy(points_z, temp_points_z, size);
+                    return fq;
+                } else if (f1 < f0) {
+                    step_size = x1;
+                    move_points(
+                        points_x,
+                        points_y,
+                        points_z,
+                        step_x,
+                        step_y,
+                        step_z,
+                        step_size,
+                        num_points
+                    );
+                    return f1;
+                } else {
+                    step_size = 0.0;
+                    return f0;
+                }
+            }
+            x2 = x1;
+            f2 = f1;
+        }
+    }
 }
