@@ -50,7 +50,7 @@ static SDL_Time last_step_time = 0;
 static SDL_Time last_draw_duration = 0;
 static SDL_Time last_step_duration = 0;
 static double angle = 0.0;
-static int angular_velocity = 2;
+static int angular_velocity = 0;
 static double step_size = DBL_EPSILON;
 static double energy = 0.0;
 static double force_norm = 0.0;
@@ -225,8 +225,11 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
     using namespace GlobalVariables;
 
     num_points = 2000;
-    SDL_GetCurrentTime(&last_draw_time);
-    SDL_GetCurrentTime(&last_step_time);
+    SDL_Time initial_time;
+    SDL_GetCurrentTime(&initial_time);
+    last_draw_time = initial_time;
+    last_step_time = initial_time;
+    std::srand(static_cast<unsigned int>(initial_time));
 
     window = SDL_CreateWindow(
         "Rieszolve",
@@ -334,8 +337,8 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
 
     SDL_Time current_time;
     SDL_GetCurrentTime(&current_time);
-    last_draw_duration = current_time - last_draw_time;
-    last_step_duration = current_time - last_step_time;
+    last_draw_duration = current_time - initial_time;
+    last_step_duration = current_time - initial_time;
 
     return SDL_APP_CONTINUE;
 }
