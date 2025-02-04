@@ -61,12 +61,12 @@ struct HighPrecisionAccumulator {
 
     double terms[2];
 
-    constexpr HighPrecisionAccumulator() noexcept
+    HighPrecisionAccumulator() noexcept
         : terms{0.0, 0.0} {}
 
-    constexpr double to_double() const noexcept { return terms[0] + terms[1]; }
+    double to_double() const noexcept { return terms[0] + terms[1]; }
 
-    constexpr void add(double x) noexcept {
+    void add(double x) noexcept {
         two_sum(terms[0], x);
         two_sum(terms[1], x);
     }
