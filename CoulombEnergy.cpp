@@ -1,6 +1,16 @@
 #include "CoulombEnergy.hpp"
 
 #include <cmath>
+using std::fma;
+using std::sqrt;
+
+#ifdef __AVX512F__
+#define RIESZOLVE_USE_AVX512
+#endif
+
+#ifdef RIESZOLVE_USE_AVX512
+#include <immintrin.h>
+#endif
 
 
 static inline void two_sum(double &s, double &e, double x, double y) {
@@ -13,11 +23,32 @@ static inline void two_sum(double &s, double &e, double x, double y) {
 }
 
 
+#ifdef RIESZOLVE_USE_AVX512
+static inline void two_sum(__m512d &s, __m512d &e, __m512d x, __m512d y) {
+    s = _mm512_add_pd(x, y);
+    const __m512d x_eff = _mm512_sub_pd(s, y);
+    const __m512d y_eff = _mm512_sub_pd(s, x_eff);
+    const __m512d x_err = _mm512_sub_pd(x, x_eff);
+    const __m512d y_err = _mm512_sub_pd(y, y_eff);
+    e = _mm512_add_pd(x_err, y_err);
+}
+#endif
+
+
 static inline void two_sum(double &s, double &e) {
     const double x = s;
     const double y = e;
     two_sum(s, e, x, y);
 }
+
+
+#ifdef RIESZOLVE_USE_AVX512
+static inline void two_sum(__m512d &s, __m512d &e) {
+    const __m512d x = s;
+    const __m512d y = e;
+    two_sum(s, e, x, y);
+}
+#endif
 
 
 struct HighPrecisionAccumulator {
@@ -37,13 +68,33 @@ struct HighPrecisionAccumulator {
 }; // struct HighPrecisionAccumulator
 
 
+#ifdef RIESZOLVE_USE_AVX512
+struct HighPrecisionVectorAccumulator {
+
+    __m512d terms[2];
+
+    HighPrecisionVectorAccumulator() noexcept
+        : terms{_mm512_setzero_pd(), _mm512_setzero_pd()} {}
+
+    double to_double() const noexcept {
+        return _mm512_reduce_add_pd(_mm512_add_pd(terms[0], terms[1]));
+    }
+
+    void add(__m512d x) noexcept {
+        two_sum(terms[0], x);
+        two_sum(terms[1], x);
+    }
+
+}; // struct HighPrecisionVectorAccumulator
+#endif
+
+
 double compute_coulomb_energy(
     const double *__restrict__ points_x,
     const double *__restrict__ points_y,
     const double *__restrict__ points_z,
     int num_points
 ) {
-    using std::sqrt;
     HighPrecisionAccumulator energy;
     for (int i = 0; i < num_points; ++i) {
         const double xi = points_x[i];
@@ -54,9 +105,9 @@ double compute_coulomb_energy(
                 const double delta_x = xi - points_x[j];
                 const double delta_y = yi - points_y[j];
                 const double delta_z = zi - points_z[j];
-                const double norm_squared =
+                const double dist_squared =
                     delta_x * delta_x + delta_y * delta_y + delta_z * delta_z;
-                energy.add(1.0 / sqrt(norm_squared));
+                energy.add(1.0 / sqrt(dist_squared));
             }
         }
     }
@@ -73,7 +124,89 @@ double compute_coulomb_forces(
     const double *__restrict__ points_z,
     int num_points
 ) {
-    using std::sqrt;
+#ifdef RIESZOLVE_USE_AVX512
+    const __m512d ONE_VECTOR = _mm512_set1_pd(1.0);
+    HighPrecisionVectorAccumulator energy_vector;
+    HighPrecisionAccumulator energy_scalar;
+    for (int i = 0; i < num_points; ++i) {
+        const double xi = points_x[i];
+        const double yi = points_y[i];
+        const double zi = points_z[i];
+        const __m512d xi_vector = _mm512_set1_pd(xi);
+        const __m512d yi_vector = _mm512_set1_pd(yi);
+        const __m512d zi_vector = _mm512_set1_pd(zi);
+        HighPrecisionVectorAccumulator fx_vector;
+        HighPrecisionVectorAccumulator fy_vector;
+        HighPrecisionVectorAccumulator fz_vector;
+        HighPrecisionAccumulator fx_scalar;
+        HighPrecisionAccumulator fy_scalar;
+        HighPrecisionAccumulator fz_scalar;
+        for (int j = 0; j < num_points;) {
+            if (j + 8 <= num_points) {
+                if ((j <= i) & (i < j + 8)) {
+                    for (int k = 0; k < 8; ++j, ++k) {
+                        if (i != j) {
+                            const double delta_x = xi - points_x[j];
+                            const double delta_y = yi - points_y[j];
+                            const double delta_z = zi - points_z[j];
+                            double dist_squared = delta_x * delta_x;
+                            dist_squared = fma(delta_y, delta_y, dist_squared);
+                            dist_squared = fma(delta_z, delta_z, dist_squared);
+                            const double inv_dist = 1.0 / sqrt(dist_squared);
+                            energy_scalar.add(inv_dist);
+                            const double inv_dist_cubed =
+                                inv_dist / dist_squared;
+                            fx_scalar.add(delta_x * inv_dist_cubed);
+                            fy_scalar.add(delta_y * inv_dist_cubed);
+                            fz_scalar.add(delta_z * inv_dist_cubed);
+                        }
+                    }
+                } else {
+                    const __m512d delta_x =
+                        _mm512_sub_pd(xi_vector, _mm512_load_pd(points_x + j));
+                    const __m512d delta_y =
+                        _mm512_sub_pd(yi_vector, _mm512_load_pd(points_y + j));
+                    const __m512d delta_z =
+                        _mm512_sub_pd(zi_vector, _mm512_load_pd(points_z + j));
+                    __m512d dist_squared = _mm512_mul_pd(delta_x, delta_x);
+                    dist_squared =
+                        _mm512_fmadd_pd(delta_y, delta_y, dist_squared);
+                    dist_squared =
+                        _mm512_fmadd_pd(delta_z, delta_z, dist_squared);
+                    const __m512d inv_dist =
+                        _mm512_div_pd(ONE_VECTOR, _mm512_sqrt_pd(dist_squared));
+                    energy_vector.add(inv_dist);
+                    const __m512d inv_dist_cubed =
+                        _mm512_div_pd(inv_dist, dist_squared);
+                    fx_vector.add(_mm512_mul_pd(delta_x, inv_dist_cubed));
+                    fy_vector.add(_mm512_mul_pd(delta_y, inv_dist_cubed));
+                    fz_vector.add(_mm512_mul_pd(delta_z, inv_dist_cubed));
+                    j += 8;
+                }
+            } else {
+                if (i != j) {
+                    const double delta_x = xi - points_x[j];
+                    const double delta_y = yi - points_y[j];
+                    const double delta_z = zi - points_z[j];
+                    double dist_squared = delta_x * delta_x;
+                    dist_squared = fma(delta_y, delta_y, dist_squared);
+                    dist_squared = fma(delta_z, delta_z, dist_squared);
+                    const double inv_dist = 1.0 / sqrt(dist_squared);
+                    energy_scalar.add(inv_dist);
+                    const double inv_dist_cubed = inv_dist / dist_squared;
+                    fx_scalar.add(delta_x * inv_dist_cubed);
+                    fy_scalar.add(delta_y * inv_dist_cubed);
+                    fz_scalar.add(delta_z * inv_dist_cubed);
+                }
+                ++j;
+            }
+        }
+        forces_x[i] = fx_vector.to_double() + fx_scalar.to_double();
+        forces_y[i] = fy_vector.to_double() + fy_scalar.to_double();
+        forces_z[i] = fz_vector.to_double() + fz_scalar.to_double();
+    }
+    return energy_vector.to_double() + energy_scalar.to_double();
+#else
     HighPrecisionAccumulator energy;
     for (int i = 0; i < num_points; ++i) {
         const double xi = points_x[i];
@@ -87,14 +220,15 @@ double compute_coulomb_forces(
                 const double delta_x = xi - points_x[j];
                 const double delta_y = yi - points_y[j];
                 const double delta_z = zi - points_z[j];
-                const double norm_squared =
-                    delta_x * delta_x + delta_y * delta_y + delta_z * delta_z;
-                const double inv_norm = 1.0 / sqrt(norm_squared);
-                energy.add(inv_norm);
-                const double inv_norm_cubed = inv_norm / norm_squared;
-                fx.add(delta_x * inv_norm_cubed);
-                fy.add(delta_y * inv_norm_cubed);
-                fz.add(delta_z * inv_norm_cubed);
+                double dist_squared = delta_x * delta_x;
+                dist_squared = fma(delta_y, delta_y, dist_squared);
+                dist_squared = fma(delta_z, delta_z, dist_squared);
+                const double inv_dist = 1.0 / sqrt(dist_squared);
+                energy.add(inv_dist);
+                const double inv_dist_cubed = inv_dist / dist_squared;
+                fx.add(delta_x * inv_dist_cubed);
+                fy.add(delta_y * inv_dist_cubed);
+                fz.add(delta_z * inv_dist_cubed);
             }
         }
         forces_x[i] = fx.to_double();
@@ -102,6 +236,7 @@ double compute_coulomb_forces(
         forces_z[i] = fz.to_double();
     }
     return energy.to_double();
+#endif
 }
 
 
@@ -114,7 +249,6 @@ double constrain_forces(
     const double *__restrict__ points_z,
     int num_points
 ) {
-    using std::sqrt;
     HighPrecisionAccumulator force_norm_squared;
     for (int i = 0; i < num_points; ++i) {
         const double fx = forces_x[i];
@@ -123,10 +257,10 @@ double constrain_forces(
         const double x = points_x[i];
         const double y = points_y[i];
         const double z = points_z[i];
-        const double dot = std::fma(fx, x, std::fma(fy, y, fz * z));
-        const double proj_x = -std::fma(dot, x, -fx);
-        const double proj_y = -std::fma(dot, y, -fy);
-        const double proj_z = -std::fma(dot, z, -fz);
+        const double dot = fma(fx, x, fma(fy, y, fz * z));
+        const double proj_x = -fma(dot, x, -fx);
+        const double proj_y = -fma(dot, y, -fy);
+        const double proj_z = -fma(dot, z, -fz);
         forces_x[i] = proj_x;
         forces_y[i] = proj_y;
         forces_z[i] = proj_z;
@@ -148,7 +282,6 @@ void move_points(
     double step_size,
     int num_points
 ) {
-    using std::sqrt;
 #pragma omp simd simdlen(8)                                                    \
     aligned(points_x, points_y, points_z, step_x, step_y, step_z : 64)
     for (int i = 0; i < num_points; ++i) {
@@ -177,7 +310,6 @@ void move_points(
     double step_size,
     int num_points
 ) {
-    using std::sqrt;
 #pragma omp simd simdlen(8)                                                    \
     aligned(new_points_x, new_points_y, new_points_z : 64)                     \
     aligned(points_x, points_y, points_z, step_x, step_y, step_z : 64)

@@ -7,7 +7,10 @@
                 "C:/Programs/msys64/ucrt64/include"
             ],
             "compilerPath": "C:/Programs/msys64/ucrt64/bin/clang++.exe",
-            "intelliSenseMode": "windows-clang-x64"
+            "intelliSenseMode": "windows-clang-x64",
+            "defines": [
+                "__AVX512F__"
+            ]
         }
     ],
     "version": 4
