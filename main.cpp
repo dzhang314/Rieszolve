@@ -50,6 +50,7 @@ static SDL_Time last_draw_duration = 0;
 static SDL_Time last_step_duration = 0;
 static double angle = 0.0;
 static int angular_velocity = 2;
+static double step_size = 1.0e-6;
 static double energy = 0.0;
 static double force_norm = 0.0;
 static bool render_forces = true;
@@ -126,7 +127,7 @@ static inline int SDLCALL run_optimizer(void *) {
             optimizer_forces_x,
             optimizer_forces_y,
             optimizer_forces_z,
-            1.0e-6,
+            step_size,
             num_points
         );
         update_forces();
@@ -295,6 +296,7 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
 SDL_AppResult SDL_AppEvent(void *, SDL_Event *event) {
     using GlobalVariables::angular_velocity;
     using GlobalVariables::render_forces;
+    using GlobalVariables::step_size;
     switch (event->type) {
         case SDL_EVENT_QUIT: return SDL_APP_SUCCESS;
         case SDL_EVENT_KEY_DOWN: {
@@ -303,6 +305,8 @@ SDL_AppResult SDL_AppEvent(void *, SDL_Event *event) {
                 case SDLK_Q: return SDL_APP_SUCCESS;
                 case SDLK_LEFT: angular_velocity -= 2; break;
                 case SDLK_RIGHT: angular_velocity += 2; break;
+                case SDLK_EQUALS: step_size *= 2.0; break;
+                case SDLK_MINUS: step_size *= 0.5; break;
                 case SDLK_F: render_forces = !render_forces; break;
                 default: break;
             }
