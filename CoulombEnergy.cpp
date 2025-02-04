@@ -369,10 +369,10 @@ double compute_step_direction(
     const double *__restrict__ prev_forces_z,
     int num_points
 ) {
-    const double current_norm = dot_product(
+    const double force_norm_squared = dot_product(
         forces_x, forces_y, forces_z, forces_x, forces_y, forces_z, num_points
     );
-    const double prev_norm = dot_product(
+    const double prev_norm_squared = dot_product(
         prev_forces_x,
         prev_forces_y,
         prev_forces_z,
@@ -390,14 +390,17 @@ double compute_step_direction(
         prev_forces_z,
         num_points
     );
-    if (current_norm > overlap) {
-        const double beta = (current_norm - overlap) / prev_norm;
+    if (force_norm_squared > overlap) {
+        const double beta = (force_norm_squared - overlap) / prev_norm_squared;
+#pragma omp simd simdlen(8) aligned(step_x, forces_x : 64)
         for (int i = 0; i < num_points; ++i) {
             step_x[i] = fma(beta, step_x[i], forces_x[i]);
         }
+#pragma omp simd simdlen(8) aligned(step_y, forces_y : 64)
         for (int i = 0; i < num_points; ++i) {
             step_y[i] = fma(beta, step_y[i], forces_y[i]);
         }
+#pragma omp simd simdlen(8) aligned(step_z, forces_z : 64)
         for (int i = 0; i < num_points; ++i) {
             step_z[i] = fma(beta, step_z[i], forces_z[i]);
         }
@@ -405,10 +408,12 @@ double compute_step_direction(
             step_x, step_y, step_z, step_x, step_y, step_z, num_points
         ));
     } else {
-        for (int i = 0; i < num_points; ++i) { step_x[i] = forces_x[i]; }
-        for (int i = 0; i < num_points; ++i) { step_y[i] = forces_y[i]; }
-        for (int i = 0; i < num_points; ++i) { step_z[i] = forces_z[i]; }
-        return sqrt(current_norm);
+        const std::size_t size =
+            static_cast<std::size_t>(num_points) * sizeof(double);
+        memcpy(step_x, forces_x, size);
+        memcpy(step_y, forces_y, size);
+        memcpy(step_z, forces_z, size);
+        return sqrt(force_norm_squared);
     }
 }
 
