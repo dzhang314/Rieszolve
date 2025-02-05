@@ -9,6 +9,7 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 
+#include "ConvexHull.hpp"
 #include "CoulombEnergy.hpp"
 #include "RenderCircle.hpp"
 
@@ -22,7 +23,7 @@ static inline SDL_FColor random_color() {
     const float r = rand_float();
     const float g = rand_float();
     const float b = rand_float();
-    const float scale = 1.0f / std::max(std::max(r, g), b);
+    const float scale = 1.0f / std::fmax(std::fmax(r, g), b);
     return {scale * r, scale * g, scale * b, SDL_ALPHA_OPAQUE_FLOAT};
 }
 
@@ -44,6 +45,7 @@ constexpr int INITIAL_WINDOW_WIDTH = 1920;
 constexpr int INITIAL_WINDOW_HEIGHT = 1080;
 
 static int num_points = 0;
+static int num_faces = 0;
 static int num_iterations = 0;
 static SDL_Time last_draw_time = 0;
 static SDL_Time last_step_time = 0;
@@ -83,6 +85,7 @@ static double *renderer_points_z = nullptr;
 static double *renderer_forces_x = nullptr;
 static double *renderer_forces_y = nullptr;
 static double *renderer_forces_z = nullptr;
+static int *renderer_faces = nullptr;
 static float *screen_points = nullptr;
 static float *screen_forces = nullptr;
 static SDL_FColor *renderer_colors = nullptr;
@@ -136,10 +139,8 @@ static inline void send_data_to_renderer() {
 static inline int SDLCALL run_optimizer(void *) {
     using namespace GlobalVariables;
     while (!quit) {
-
         const double prev_step_size = step_size;
         const double prev_step_length = step_length;
-
         step_norm = compute_step_direction(
             optimizer_step_x,
             optimizer_step_y,
@@ -168,17 +169,14 @@ static inline int SDLCALL run_optimizer(void *) {
         );
         step_length = step_size * step_norm;
         force_norm = update_forces();
-
         SDL_LockRWLockForWriting(renderer_lock);
         send_data_to_renderer();
         SDL_UnlockRWLock(renderer_lock);
-
         if (!(step_size > 0.0)) {
             step_size = prev_step_size;
             step_length = prev_step_length;
             break;
         }
-
         ++num_iterations;
         SDL_Time current_time;
         SDL_GetCurrentTime(&current_time);
@@ -233,10 +231,10 @@ static inline int SDLCALL run_optimizer(void *) {
 
 SDL_AppResult SDL_AppInit(void **, int, char **) {
 
-    using std::sqrt;
     using namespace GlobalVariables;
 
     num_points = 2000;
+    num_faces = 2 * num_points - 4;
     SDL_Time initial_time;
     SDL_GetCurrentTime(&initial_time);
     last_draw_time = initial_time;
@@ -297,6 +295,7 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
     ALLOCATE_ALIGNED_MEMORY(renderer_forces_y, double, num_points);
     ALLOCATE_ALIGNED_MEMORY(renderer_forces_z, double, num_points);
 
+    ALLOCATE_MEMORY(renderer_faces, int, 3 * num_faces);
     ALLOCATE_MEMORY(screen_points, float, 3 * num_points);
     ALLOCATE_MEMORY(screen_forces, float, 2 * num_points);
     ALLOCATE_MEMORY(renderer_colors, SDL_FColor, num_points);
@@ -312,7 +311,7 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
             z = 2.0 * static_cast<double>(rand_float()) - 1.0;
             const double norm_squared = x * x + y * y + z * z;
             if (norm_squared <= 1.0) {
-                const double inv_norm = 1.0 / sqrt(norm_squared);
+                const double inv_norm = 1.0 / std::sqrt(norm_squared);
                 x *= inv_norm;
                 y *= inv_norm;
                 z *= inv_norm;
@@ -451,6 +450,41 @@ SDL_AppResult SDL_AppIterate(void *) {
     }
     SDL_UnlockRWLock(renderer_lock);
 
+    triangulate(
+        renderer_faces,
+        renderer_points_x,
+        renderer_points_y,
+        renderer_points_z,
+        num_points
+    );
+
+    SDL_SetRenderDrawColor(renderer, 127, 127, 127, SDL_ALPHA_OPAQUE);
+    for (int i = 0; i < num_faces; ++i) {
+        const int a_index = renderer_faces[3 * i + 0];
+        const int b_index = renderer_faces[3 * i + 1];
+        const int c_index = renderer_faces[3 * i + 2];
+        if ((a_index >= 0) & (b_index >= 0) & (c_index >= 0)) {
+            bool valid = true;
+            const float x0 = screen_points[3 * a_index + 0];
+            valid &= !std::isnan(x0);
+            const float y0 = screen_points[3 * a_index + 1];
+            valid &= !std::isnan(y0);
+            const float x1 = screen_points[3 * b_index + 0];
+            valid &= !std::isnan(x1);
+            const float y1 = screen_points[3 * b_index + 1];
+            valid &= !std::isnan(y1);
+            const float x2 = screen_points[3 * c_index + 0];
+            valid &= !std::isnan(x2);
+            const float y2 = screen_points[3 * c_index + 1];
+            valid &= !std::isnan(y2);
+            if (valid) {
+                SDL_RenderLine(renderer, x0, y0, x1, y1);
+                SDL_RenderLine(renderer, x1, y1, x2, y2);
+                SDL_RenderLine(renderer, x2, y2, x0, y0);
+            }
+        }
+    }
+
     int num_rendered_points = 0;
     SDL_Vertex *vertex_pointer = renderer_vertices;
     for (int i = 0; i < num_points; ++i) {
@@ -585,7 +619,9 @@ void SDL_AppQuit(void *, SDL_AppResult) {
     if (optimizer_thread) { SDL_WaitThread(optimizer_thread, nullptr); }
     FREE_MEMORY(renderer_vertices);
     FREE_MEMORY(renderer_colors);
+    FREE_MEMORY(screen_forces);
     FREE_MEMORY(screen_points);
+    FREE_MEMORY(renderer_faces);
     FREE_ALIGNED_MEMORY(renderer_forces_z);
     FREE_ALIGNED_MEMORY(renderer_forces_y);
     FREE_ALIGNED_MEMORY(renderer_forces_x);

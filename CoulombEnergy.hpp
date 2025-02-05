@@ -1,3 +1,6 @@
+#pragma once
+
+
 double compute_coulomb_energy(
     const double *__restrict__ points_x,
     const double *__restrict__ points_y,
