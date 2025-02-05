@@ -611,7 +611,7 @@ SDL_AppResult SDL_AppIterate(void *) {
     }
 
     char debug_message_buffer[256];
-    SDL_SetRenderScale(renderer, 2.0f * base_scale, 2.0f * base_scale);
+    SDL_SetRenderScale(renderer, 1.5f * base_scale, 1.5f * base_scale);
     std::snprintf(
         debug_message_buffer,
         sizeof(debug_message_buffer),
