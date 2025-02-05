@@ -71,6 +71,13 @@ struct HighPrecisionAccumulator {
         two_sum(terms[1], x);
     }
 
+    HighPrecisionAccumulator &operator+=(const HighPrecisionAccumulator &other
+    ) noexcept {
+        add(other.terms[0]);
+        add(other.terms[1]);
+        return *this;
+    }
+
 }; // struct HighPrecisionAccumulator
 
 
@@ -162,6 +169,7 @@ double compute_coulomb_energy(
     return energy_vector.to_double() + energy_scalar.to_double();
 #else
     HighPrecisionAccumulator energy;
+#pragma omp parallel for schedule(static) reduction(+ : energy)
     for (int i = 0; i < num_points; ++i) {
         const double xi = points_x[i];
         const double yi = points_y[i];
@@ -193,8 +201,6 @@ void compute_coulomb_forces(
 ) {
 #ifdef RIESZOLVE_USE_AVX512
     const __m512d ONE_VECTOR = _mm512_set1_pd(1.0);
-    // HighPrecisionVectorAccumulator energy_vector;
-    // HighPrecisionAccumulator energy_scalar;
     for (int i = 0; i < num_points; ++i) {
         const double xi = points_x[i];
         const double yi = points_y[i];
@@ -220,7 +226,6 @@ void compute_coulomb_forces(
                                                         delta_y * delta_y +
                                                         delta_z * delta_z;
                             const double inv_dist = 1.0 / sqrt(dist_squared);
-                            // energy_scalar.add(inv_dist);
                             const double inv_dist_cubed =
                                 inv_dist / dist_squared;
                             fx_scalar.add(delta_x * inv_dist_cubed);
@@ -244,7 +249,6 @@ void compute_coulomb_forces(
                     );
                     const __m512d inv_dist =
                         _mm512_div_pd(ONE_VECTOR, _mm512_sqrt_pd(dist_squared));
-                    // energy_vector.add(inv_dist);
                     const __m512d inv_dist_cubed =
                         _mm512_div_pd(inv_dist, dist_squared);
                     fx_vector.add(_mm512_mul_pd(delta_x, inv_dist_cubed));
@@ -261,7 +265,6 @@ void compute_coulomb_forces(
                                                 delta_y * delta_y +
                                                 delta_z * delta_z;
                     const double inv_dist = 1.0 / sqrt(dist_squared);
-                    // energy_scalar.add(inv_dist);
                     const double inv_dist_cubed = inv_dist / dist_squared;
                     fx_scalar.add(delta_x * inv_dist_cubed);
                     fy_scalar.add(delta_y * inv_dist_cubed);
@@ -274,9 +277,8 @@ void compute_coulomb_forces(
         forces_y[i] = fy_vector.to_double() + fy_scalar.to_double();
         forces_z[i] = fz_vector.to_double() + fz_scalar.to_double();
     }
-    // return energy_vector.to_double() + energy_scalar.to_double();
 #else
-    // HighPrecisionAccumulator energy;
+#pragma omp parallel for schedule(static)
     for (int i = 0; i < num_points; ++i) {
         const double xi = points_x[i];
         const double yi = points_y[i];
@@ -292,7 +294,6 @@ void compute_coulomb_forces(
                 const double dist_squared =
                     delta_x * delta_x + delta_y * delta_y + delta_z * delta_z;
                 const double inv_dist = 1.0 / sqrt(dist_squared);
-                // energy.add(inv_dist);
                 const double inv_dist_cubed = inv_dist / dist_squared;
                 fx.add(delta_x * inv_dist_cubed);
                 fy.add(delta_y * inv_dist_cubed);
@@ -303,7 +304,6 @@ void compute_coulomb_forces(
         forces_y[i] = fy.to_double();
         forces_z[i] = fz.to_double();
     }
-    // return energy.to_double();
 #endif // RIESZOLVE_USE_AVX512
 }
 
