@@ -240,6 +240,7 @@ static inline int SDLCALL run_optimizer(void *) {
     } while (false)
 
 
+#ifdef _WIN32
 #define ALLOCATE_ALIGNED_MEMORY(POINTER_NAME, ARRAY_TYPE, ARRAY_SIZE)          \
     do {                                                                       \
         POINTER_NAME = static_cast<ARRAY_TYPE *>(_aligned_malloc(              \
@@ -252,6 +253,21 @@ static inline int SDLCALL run_optimizer(void *) {
             return SDL_APP_FAILURE;                                            \
         }                                                                      \
     } while (false)
+#else
+#define ALLOCATE_ALIGNED_MEMORY(POINTER_NAME, ARRAY_TYPE, ARRAY_SIZE)          \
+    do {                                                                       \
+        if (posix_memalign(                                                    \
+                reinterpret_cast<void **>(&POINTER_NAME),                      \
+                64,                                                            \
+                static_cast<std::size_t>(ARRAY_SIZE) * sizeof(ARRAY_TYPE)      \
+            )) {                                                               \
+            SDL_LogCritical(                                                   \
+                SDL_LOG_CATEGORY_ERROR, "Failed to allocate aligned memory.\n" \
+            );                                                                 \
+            return SDL_APP_FAILURE;                                            \
+        }                                                                      \
+    } while (false)
+#endif // _WIN32
 
 
 #define FREE_MEMORY(POINTER_NAME)                                              \
@@ -261,11 +277,19 @@ static inline int SDLCALL run_optimizer(void *) {
     } while (false)
 
 
+#ifdef _WIN32
 #define FREE_ALIGNED_MEMORY(POINTER_NAME)                                      \
     do {                                                                       \
         if (POINTER_NAME) { _aligned_free(POINTER_NAME); }                     \
         POINTER_NAME = nullptr;                                                \
     } while (false)
+#else
+#define FREE_ALIGNED_MEMORY(POINTER_NAME)                                      \
+    do {                                                                       \
+        if (POINTER_NAME) { free(POINTER_NAME); }                              \
+        POINTER_NAME = nullptr;                                                \
+    } while (false)
+#endif // _WIN32
 
 
 static inline int parse_integer(const char *str) {
