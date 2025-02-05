@@ -506,6 +506,8 @@ SDL_AppResult SDL_AppIterate(void *) {
         num_points
     );
 
+    const float base_scale = SDL_GetWindowPixelDensity(window);
+    SDL_SetRenderScale(renderer, base_scale, base_scale);
     SDL_SetRenderDrawColor(renderer, 128, 128, 128, SDL_ALPHA_OPAQUE);
     for (int i = 0; i < num_points; ++i) { renderer_neighbors[i] = 0; }
     for (int i = 0; i < num_faces; ++i) {
@@ -609,7 +611,7 @@ SDL_AppResult SDL_AppIterate(void *) {
     }
 
     char debug_message_buffer[256];
-    SDL_SetRenderScale(renderer, 2.0f, 2.0f);
+    SDL_SetRenderScale(renderer, 2.0f * base_scale, 2.0f * base_scale);
     std::snprintf(
         debug_message_buffer,
         sizeof(debug_message_buffer),
@@ -680,7 +682,6 @@ SDL_AppResult SDL_AppIterate(void *) {
         step_length
     );
     SDL_RenderDebugText(renderer, 0.0f, 90.0f, debug_message_buffer);
-    SDL_SetRenderScale(renderer, 1.0f, 1.0f);
 
     SDL_RenderPresent(renderer);
 
