@@ -264,11 +264,25 @@ static inline int SDLCALL run_optimizer(void *) {
     } while (false)
 
 
-SDL_AppResult SDL_AppInit(void **, int, char **) {
+static inline int parse_integer(const char *str) {
+    char *endptr;
+    const long long value = std::strtoll(str, &endptr, 10);
+    if (*endptr != '\0') { return -1; }
+    if ((value < 4) | (value > 99999)) { return -1; }
+    return static_cast<int>(value);
+}
+
+
+SDL_AppResult SDL_AppInit(void **, int argc, char **argv) {
 
     using namespace GlobalVariables;
 
     num_points = 2000;
+    for (int i = 1; i < argc; ++i) {
+        const int n = parse_integer(argv[i]);
+        if (n != -1) { num_points = n; }
+    }
+
     num_faces = 2 * num_points - 4;
     SDL_Time initial_time;
     SDL_GetCurrentTime(&initial_time);
