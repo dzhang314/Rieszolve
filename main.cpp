@@ -178,6 +178,7 @@ static inline int SDLCALL run_optimizer(void *) {
             step_size = DBL_EPSILON;
             randomize_requested = false;
         }
+        double next_step_size = step_size;
         const double next_step_norm = compute_step_direction(
             optimizer_step_x,
             optimizer_step_y,
@@ -198,7 +199,7 @@ static inline int SDLCALL run_optimizer(void *) {
             optimizer_temp_x,
             optimizer_temp_y,
             optimizer_temp_z,
-            step_size,
+            next_step_size,
             optimizer_step_x,
             optimizer_step_y,
             optimizer_step_z,
@@ -210,6 +211,7 @@ static inline int SDLCALL run_optimizer(void *) {
         if (step_size > 0.0) {
             ++num_iterations;
             energy = next_energy;
+            step_size = next_step_size;
             step_norm = next_step_norm;
             step_length = step_size * step_norm;
             SDL_Time current_time;
