@@ -208,7 +208,7 @@ static inline int SDLCALL run_optimizer(void *) {
         );
         force_norm = update_forces();
         send_data_to_renderer();
-        if (step_size > 0.0) {
+        if (next_step_size > 0.0) {
             ++num_iterations;
             energy = next_energy;
             step_size = next_step_size;
