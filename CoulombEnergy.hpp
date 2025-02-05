@@ -41,7 +41,8 @@ double compute_step_direction(
     const double *__restrict__ prev_forces_x,
     const double *__restrict__ prev_forces_y,
     const double *__restrict__ prev_forces_z,
-    int num_points
+    int num_points,
+    bool conjugate_gradient
 );
 
 
