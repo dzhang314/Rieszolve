@@ -11,6 +11,17 @@
             "defines": [
                 "__AVX512F__"
             ]
+        },
+        {
+            "name": "Mac",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/opt/homebrew/Cellar/sdl3/3.2.0/include",
+                "/opt/homebrew/Cellar/cgal/6.0.1/include",
+                "/opt/homebrew/Cellar/boost/1.87.0/include"
+            ],
+            "compilerPath": "/usr/bin/clang++",
+            "intelliSenseMode": "macos-clang-arm64"
         }
     ],
     "version": 4
