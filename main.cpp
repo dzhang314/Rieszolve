@@ -34,6 +34,8 @@ namespace GlobalVariables {
 
 constexpr int INITIAL_WINDOW_WIDTH = 1920;
 constexpr int INITIAL_WINDOW_HEIGHT = 1080;
+constexpr int MAX_NUM_POINTS = 99999;
+constexpr int MAX_NUM_FACES = 2 * MAX_NUM_POINTS - 4;
 
 static int num_points = 0;
 static int num_faces = 0;
@@ -134,7 +136,7 @@ static inline void send_data_to_renderer() {
 
 static inline void randomize_points() {
     using namespace GlobalVariables;
-    for (int i = 0; i < num_points; ++i) {
+    for (int i = 0; i < MAX_NUM_POINTS; ++i) {
         double x, y, z;
         while (true) {
             x = 2.0 * static_cast<double>(rand_float()) - 1.0;
@@ -267,10 +269,13 @@ static inline int SDLCALL run_optimizer(void *) {
 
 
 static inline int parse_integer(const char *str) {
+    using GlobalVariables::MAX_NUM_POINTS;
     char *endptr;
     const long long value = std::strtoll(str, &endptr, 10);
     if (*endptr != '\0') { return -1; }
-    if ((value < 4) | (value > 99999)) { return -1; }
+    if ((value < 4) | (value > static_cast<long long>(MAX_NUM_POINTS))) {
+        return -1;
+    }
     return static_cast<int>(value);
 }
 
@@ -317,21 +322,21 @@ SDL_AppResult SDL_AppInit(void **, int argc, char **argv) {
         return SDL_APP_FAILURE;
     }
 
-    ALLOCATE_ALIGNED_MEMORY(optimizer_points_x, double, num_points);
-    ALLOCATE_ALIGNED_MEMORY(optimizer_points_y, double, num_points);
-    ALLOCATE_ALIGNED_MEMORY(optimizer_points_z, double, num_points);
-    ALLOCATE_ALIGNED_MEMORY(optimizer_forces_x, double, num_points);
-    ALLOCATE_ALIGNED_MEMORY(optimizer_forces_y, double, num_points);
-    ALLOCATE_ALIGNED_MEMORY(optimizer_forces_z, double, num_points);
-    ALLOCATE_ALIGNED_MEMORY(optimizer_prev_forces_x, double, num_points);
-    ALLOCATE_ALIGNED_MEMORY(optimizer_prev_forces_y, double, num_points);
-    ALLOCATE_ALIGNED_MEMORY(optimizer_prev_forces_z, double, num_points);
-    ALLOCATE_ALIGNED_MEMORY(optimizer_step_x, double, num_points);
-    ALLOCATE_ALIGNED_MEMORY(optimizer_step_y, double, num_points);
-    ALLOCATE_ALIGNED_MEMORY(optimizer_step_z, double, num_points);
-    ALLOCATE_ALIGNED_MEMORY(optimizer_temp_x, double, num_points);
-    ALLOCATE_ALIGNED_MEMORY(optimizer_temp_y, double, num_points);
-    ALLOCATE_ALIGNED_MEMORY(optimizer_temp_z, double, num_points);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_points_x, double, MAX_NUM_POINTS);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_points_y, double, MAX_NUM_POINTS);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_points_z, double, MAX_NUM_POINTS);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_forces_x, double, MAX_NUM_POINTS);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_forces_y, double, MAX_NUM_POINTS);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_forces_z, double, MAX_NUM_POINTS);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_prev_forces_x, double, MAX_NUM_POINTS);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_prev_forces_y, double, MAX_NUM_POINTS);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_prev_forces_z, double, MAX_NUM_POINTS);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_step_x, double, MAX_NUM_POINTS);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_step_y, double, MAX_NUM_POINTS);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_step_z, double, MAX_NUM_POINTS);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_temp_x, double, MAX_NUM_POINTS);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_temp_y, double, MAX_NUM_POINTS);
+    ALLOCATE_ALIGNED_MEMORY(optimizer_temp_z, double, MAX_NUM_POINTS);
 
     renderer_lock = SDL_CreateRWLock();
     if (!renderer_lock) {
@@ -339,20 +344,20 @@ SDL_AppResult SDL_AppInit(void **, int argc, char **argv) {
         return SDL_APP_FAILURE;
     }
 
-    ALLOCATE_ALIGNED_MEMORY(renderer_points_x, double, num_points);
-    ALLOCATE_ALIGNED_MEMORY(renderer_points_y, double, num_points);
-    ALLOCATE_ALIGNED_MEMORY(renderer_points_z, double, num_points);
-    ALLOCATE_ALIGNED_MEMORY(renderer_forces_x, double, num_points);
-    ALLOCATE_ALIGNED_MEMORY(renderer_forces_y, double, num_points);
-    ALLOCATE_ALIGNED_MEMORY(renderer_forces_z, double, num_points);
+    ALLOCATE_ALIGNED_MEMORY(renderer_points_x, double, MAX_NUM_POINTS);
+    ALLOCATE_ALIGNED_MEMORY(renderer_points_y, double, MAX_NUM_POINTS);
+    ALLOCATE_ALIGNED_MEMORY(renderer_points_z, double, MAX_NUM_POINTS);
+    ALLOCATE_ALIGNED_MEMORY(renderer_forces_x, double, MAX_NUM_POINTS);
+    ALLOCATE_ALIGNED_MEMORY(renderer_forces_y, double, MAX_NUM_POINTS);
+    ALLOCATE_ALIGNED_MEMORY(renderer_forces_z, double, MAX_NUM_POINTS);
 
-    ALLOCATE_MEMORY(renderer_faces, int, 3 * num_faces);
-    ALLOCATE_MEMORY(renderer_neighbors, int, num_points);
-    ALLOCATE_MEMORY(screen_points, float, 3 * num_points);
-    ALLOCATE_MEMORY(screen_forces, float, 2 * num_points);
-    ALLOCATE_MEMORY(renderer_colors, SDL_FColor, num_points);
+    ALLOCATE_MEMORY(renderer_faces, int, 3 * MAX_NUM_FACES);
+    ALLOCATE_MEMORY(renderer_neighbors, int, MAX_NUM_POINTS);
+    ALLOCATE_MEMORY(screen_points, float, 3 * MAX_NUM_POINTS);
+    ALLOCATE_MEMORY(screen_forces, float, 2 * MAX_NUM_POINTS);
+    ALLOCATE_MEMORY(renderer_colors, SDL_FColor, MAX_NUM_POINTS);
     ALLOCATE_MEMORY(
-        renderer_vertices, SDL_Vertex, NUM_CIRCLE_VERTICES * num_points
+        renderer_vertices, SDL_Vertex, NUM_CIRCLE_VERTICES * MAX_NUM_POINTS
     );
 
     randomize_points();
