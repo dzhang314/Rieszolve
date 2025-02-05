@@ -19,15 +19,6 @@ static inline float rand_float() {
 }
 
 
-static inline SDL_FColor random_color() {
-    const float r = rand_float();
-    const float g = rand_float();
-    const float b = rand_float();
-    const float scale = 1.0f / std::fmax(std::fmax(r, g), b);
-    return {scale * r, scale * g, scale * b, SDL_ALPHA_OPAQUE_FLOAT};
-}
-
-
 // Rieszolve uses mixed-precision arithmetic to solve the Thomson problem
 // with extremely high accuracy without sacrificing rendering performance.
 // * Geometry optimization is performed in extended precision
@@ -86,6 +77,7 @@ static double *renderer_forces_x = nullptr;
 static double *renderer_forces_y = nullptr;
 static double *renderer_forces_z = nullptr;
 static int *renderer_faces = nullptr;
+static int *renderer_neighbors = nullptr;
 static float *screen_points = nullptr;
 static float *screen_forces = nullptr;
 static SDL_FColor *renderer_colors = nullptr;
@@ -296,6 +288,7 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
     ALLOCATE_ALIGNED_MEMORY(renderer_forces_z, double, num_points);
 
     ALLOCATE_MEMORY(renderer_faces, int, 3 * num_faces);
+    ALLOCATE_MEMORY(renderer_neighbors, int, num_points);
     ALLOCATE_MEMORY(screen_points, float, 3 * num_points);
     ALLOCATE_MEMORY(screen_forces, float, 2 * num_points);
     ALLOCATE_MEMORY(renderer_colors, SDL_FColor, num_points);
@@ -321,7 +314,6 @@ SDL_AppResult SDL_AppInit(void **, int, char **) {
         optimizer_points_x[i] = x;
         optimizer_points_y[i] = y;
         optimizer_points_z[i] = z;
-        renderer_colors[i] = random_color();
     }
 
     energy = compute_coulomb_energy(
@@ -450,7 +442,7 @@ SDL_AppResult SDL_AppIterate(void *) {
     }
     SDL_UnlockRWLock(renderer_lock);
 
-    triangulate(
+    convex_hull(
         renderer_faces,
         renderer_points_x,
         renderer_points_y,
@@ -458,12 +450,16 @@ SDL_AppResult SDL_AppIterate(void *) {
         num_points
     );
 
-    SDL_SetRenderDrawColor(renderer, 127, 127, 127, SDL_ALPHA_OPAQUE);
+    SDL_SetRenderDrawColor(renderer, 128, 128, 128, SDL_ALPHA_OPAQUE);
+    for (int i = 0; i < num_points; ++i) { renderer_neighbors[i] = 0; }
     for (int i = 0; i < num_faces; ++i) {
         const int a_index = renderer_faces[3 * i + 0];
         const int b_index = renderer_faces[3 * i + 1];
         const int c_index = renderer_faces[3 * i + 2];
         if ((a_index >= 0) & (b_index >= 0) & (c_index >= 0)) {
+            ++renderer_neighbors[a_index];
+            ++renderer_neighbors[b_index];
+            ++renderer_neighbors[c_index];
             bool valid = true;
             const float x0 = screen_points[3 * a_index + 0];
             valid &= !std::isnan(x0);
@@ -482,6 +478,29 @@ SDL_AppResult SDL_AppIterate(void *) {
                 SDL_RenderLine(renderer, x1, y1, x2, y2);
                 SDL_RenderLine(renderer, x2, y2, x0, y0);
             }
+        }
+    }
+
+    for (int i = 0; i < num_points; ++i) {
+        switch (renderer_neighbors[i]) {
+            case 4:
+                renderer_colors[i] = {1.0f, 1.0f, 0.0f, SDL_ALPHA_OPAQUE_FLOAT};
+                break;
+            case 5:
+                renderer_colors[i] = {1.0f, 0.0f, 0.0f, SDL_ALPHA_OPAQUE_FLOAT};
+                break;
+            case 6:
+                renderer_colors[i] = {0.0f, 1.0f, 0.0f, SDL_ALPHA_OPAQUE_FLOAT};
+                break;
+            case 7:
+                renderer_colors[i] = {0.0f, 0.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT};
+                break;
+            case 8:
+                renderer_colors[i] = {1.0f, 0.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT};
+                break;
+            default:
+                renderer_colors[i] = {1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT};
+                break;
         }
     }
 
@@ -621,6 +640,7 @@ void SDL_AppQuit(void *, SDL_AppResult) {
     FREE_MEMORY(renderer_colors);
     FREE_MEMORY(screen_forces);
     FREE_MEMORY(screen_points);
+    FREE_MEMORY(renderer_neighbors);
     FREE_MEMORY(renderer_faces);
     FREE_ALIGNED_MEMORY(renderer_forces_z);
     FREE_ALIGNED_MEMORY(renderer_forces_y);

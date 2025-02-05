@@ -4,7 +4,12 @@
 #include <cassert>
 #include <cmath>
 #include <iostream>
+#include <unordered_map>
 #include <vector>
+
+#include <CGAL/Polyhedron_3.h>
+#include <CGAL/Simple_cartesian.h>
+#include <CGAL/convex_hull_3.h>
 
 
 struct Vector3D {
@@ -98,11 +103,11 @@ static void recursive_triangulate(
     for (int i : point_indices) {
         const Vector3D p{points_x[i], points_y[i], points_z[i]};
         const bool in_fab = (i == f_index) | (i == a_index) | (i == b_index) |
-                            ((dot(p, fa) >= 0.0) & (dot(p, fb) <= 0.0));
+                            ((dot(p, fa) >= 0.0) && (dot(p, fb) <= 0.0));
         const bool in_fbc = (i == f_index) | (i == b_index) | (i == c_index) |
-                            ((dot(p, fb) >= 0.0) & (dot(p, fc) <= 0.0));
+                            ((dot(p, fb) >= 0.0) && (dot(p, fc) <= 0.0));
         const bool in_fca = (i == f_index) | (i == c_index) | (i == a_index) |
-                            ((dot(p, fc) >= 0.0) & (dot(p, fa) <= 0.0));
+                            ((dot(p, fc) >= 0.0) && (dot(p, fa) <= 0.0));
         if (in_fab) { abf_points.push_back(i); }
         if (in_fbc) { bcf_points.push_back(i); }
         if (in_fca) { caf_points.push_back(i); }
@@ -188,16 +193,16 @@ void triangulate(
         const Vector3D p{points_x[i], points_y[i], points_z[i]};
         const bool in_abc =
             (i == a_index) | (i == b_index) | (i == c_index) |
-            ((dot(p, ab) >= 0.0) & (dot(p, bc) >= 0.0) & (dot(p, ac) <= 0.0));
+            ((dot(p, ab) >= 0.0) && (dot(p, bc) >= 0.0) && (dot(p, ac) <= 0.0));
         const bool in_acd =
             (i == a_index) | (i == c_index) | (i == d_index) |
-            ((dot(p, ac) >= 0.0) & (dot(p, cd) >= 0.0) & (dot(p, ad) <= 0.0));
+            ((dot(p, ac) >= 0.0) && (dot(p, cd) >= 0.0) && (dot(p, ad) <= 0.0));
         const bool in_adb =
             (i == a_index) | (i == d_index) | (i == b_index) |
-            ((dot(p, ad) >= 0.0) & (dot(p, bd) <= 0.0) & (dot(p, ab) <= 0.0));
+            ((dot(p, ad) >= 0.0) && (dot(p, bd) <= 0.0) && (dot(p, ab) <= 0.0));
         const bool in_bdc =
             (i == b_index) | (i == d_index) | (i == c_index) |
-            ((dot(p, bd) >= 0.0) & (dot(p, cd) <= 0.0) & (dot(p, bc) <= 0.0));
+            ((dot(p, bd) >= 0.0) && (dot(p, cd) <= 0.0) && (dot(p, bc) <= 0.0));
         if (in_abc) { abc_points.push_back(i); }
         if (in_acd) { acd_points.push_back(i); }
         if (in_adb) { adb_points.push_back(i); }
@@ -232,5 +237,54 @@ void triangulate(
         }
     } else {
         for (int i = 0; i < 3 * num_faces; ++i) { faces[i] = -1; }
+    }
+}
+
+
+typedef CGAL::Simple_cartesian<double> CGALKernel;
+typedef CGAL::Polyhedron_3<CGALKernel> CGALPolyhedron;
+typedef CGALKernel::Point_3 CGALPoint;
+
+
+void convex_hull(
+    int *__restrict__ faces,
+    const double *__restrict__ points_x,
+    const double *__restrict__ points_y,
+    const double *__restrict__ points_z,
+    int num_points
+) {
+
+    using vec_size = std::vector<CGALPoint>::size_type;
+    using poly_size = CGALPolyhedron::size_type;
+
+    std::vector<CGALPoint> points;
+    points.reserve(static_cast<vec_size>(num_points));
+    for (int i = 0; i < num_points; ++i) {
+        points.emplace_back(points_x[i], points_y[i], points_z[i]);
+    }
+
+    CGALPolyhedron poly;
+    CGAL::convex_hull_3(points.begin(), points.end(), poly);
+
+    const poly_size expected_num_faces =
+        static_cast<poly_size>(2 * num_points - 4);
+    const poly_size num_faces = poly.size_of_facets();
+    if (num_faces != expected_num_faces) {
+        std::fill(faces, faces + (6 * num_points - 12), -1);
+        return;
+    }
+
+    std::unordered_map<CGALPoint, int> index_map;
+    for (int i = 0; i < num_points; ++i) {
+        index_map[points[static_cast<vec_size>(i)]] = i;
+    }
+
+    int k = 0;
+    for (auto f = poly.facets_begin(); f != poly.facets_end(); ++f) {
+        auto h = f->halfedge();
+        for (int i = 0; i < 3; ++i) {
+            faces[k++] = index_map[h->vertex()->point()];
+            h = h->next();
+        }
     }
 }
