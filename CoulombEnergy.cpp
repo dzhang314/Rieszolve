@@ -80,8 +80,13 @@ struct HighPrecisionAccumulator {
 
 }; // struct HighPrecisionAccumulator
 
+#pragma omp declare reduction(                                                 \
+        + : HighPrecisionAccumulator : omp_out += omp_in                       \
+) initializer(omp_priv = HighPrecisionAccumulator{})
+
 
 #ifdef RIESZOLVE_USE_AVX512
+
 struct HighPrecisionVectorAccumulator {
 
     __m512d terms[2];
@@ -106,6 +111,11 @@ struct HighPrecisionVectorAccumulator {
     }
 
 }; // struct HighPrecisionVectorAccumulator
+
+#pragma omp declare reduction(                                                 \
+        + : HighPrecisionVectorAccumulator : omp_out += omp_in                 \
+) initializer(omp_priv = HighPrecisionVectorAccumulator{})
+
 #endif // RIESZOLVE_USE_AVX512
 
 
