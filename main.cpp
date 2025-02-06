@@ -19,6 +19,15 @@ static inline float rand_float() {
 }
 
 
+static inline SDL_FColor rand_color() {
+    const float r = rand_float();
+    const float g = rand_float();
+    const float b = rand_float();
+    const float scale = 1.0f / std::fmaxf(std::fmaxf(r, g), b);
+    return {r * scale, g * scale, b * scale, SDL_ALPHA_OPAQUE_FLOAT};
+}
+
+
 // Rieszolve uses mixed-precision arithmetic to solve the Thomson problem
 // with extremely high accuracy without sacrificing rendering performance.
 // * Geometry optimization is performed in extended precision
@@ -53,6 +62,7 @@ static double step_norm = 0.0;
 static double step_length = 0.0;
 static bool conjugate_gradient = false;
 static bool render_forces = false;
+static bool render_neighbors = false;
 static bool randomize_requested = false;
 static bool quit = false;
 
@@ -168,6 +178,12 @@ static inline void randomize_points() {
     std::memcpy(optimizer_step_y, optimizer_forces_y, size);
     std::memcpy(optimizer_step_z, optimizer_forces_z, size);
     send_data_to_renderer();
+}
+
+
+static inline void randomize_colors() {
+    using namespace GlobalVariables;
+    for (int i = 0; i < num_points; ++i) { renderer_colors[i] = rand_color(); }
 }
 
 
@@ -385,6 +401,7 @@ SDL_AppResult SDL_AppInit(void **, int argc, char **argv) {
     );
 
     randomize_points();
+    randomize_colors();
 
     optimizer_thread =
         SDL_CreateThread(run_optimizer, "RieszolveOptimizerThread", nullptr);
@@ -418,6 +435,10 @@ SDL_AppResult SDL_AppEvent(void *, SDL_Event *event) {
                 case SDLK_RIGHT: angular_velocity += 2; break;
                 case SDLK_C: conjugate_gradient = !conjugate_gradient; break;
                 case SDLK_F: render_forces = !render_forces; break;
+                case SDLK_N:
+                    render_neighbors = !render_neighbors;
+                    if (!render_neighbors) { randomize_colors(); }
+                    break;
                 case SDLK_R: randomize_requested = true; break;
                 default: break;
             }
@@ -427,6 +448,14 @@ SDL_AppResult SDL_AppEvent(void *, SDL_Event *event) {
     }
     return SDL_APP_CONTINUE;
 }
+
+
+constexpr SDL_FColor RED = {1.0f, 0.0f, 0.0f, SDL_ALPHA_OPAQUE_FLOAT};
+constexpr SDL_FColor GREEN = {0.0f, 1.0f, 0.0f, SDL_ALPHA_OPAQUE_FLOAT};
+constexpr SDL_FColor BLUE = {0.0f, 0.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT};
+constexpr SDL_FColor YELLOW = {1.0f, 1.0f, 0.0f, SDL_ALPHA_OPAQUE_FLOAT};
+constexpr SDL_FColor MAGENTA = {1.0f, 0.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT};
+constexpr SDL_FColor WHITE = {1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT};
 
 
 SDL_AppResult SDL_AppIterate(void *) {
@@ -498,67 +527,56 @@ SDL_AppResult SDL_AppIterate(void *) {
     }
     SDL_UnlockRWLock(renderer_lock);
 
-    convex_hull(
-        renderer_faces,
-        renderer_points_x,
-        renderer_points_y,
-        renderer_points_z,
-        num_points
-    );
-
     const float base_scale = SDL_GetWindowPixelDensity(window);
     SDL_SetRenderScale(renderer, base_scale, base_scale);
-    SDL_SetRenderDrawColor(renderer, 128, 128, 128, SDL_ALPHA_OPAQUE);
-    for (int i = 0; i < num_points; ++i) { renderer_neighbors[i] = 0; }
-    for (int i = 0; i < num_faces; ++i) {
-        const int a_index = renderer_faces[3 * i + 0];
-        const int b_index = renderer_faces[3 * i + 1];
-        const int c_index = renderer_faces[3 * i + 2];
-        if ((a_index >= 0) & (b_index >= 0) & (c_index >= 0)) {
-            ++renderer_neighbors[a_index];
-            ++renderer_neighbors[b_index];
-            ++renderer_neighbors[c_index];
-            bool valid = true;
-            const float x0 = screen_points[3 * a_index + 0];
-            valid &= !std::isnan(x0);
-            const float y0 = screen_points[3 * a_index + 1];
-            valid &= !std::isnan(y0);
-            const float x1 = screen_points[3 * b_index + 0];
-            valid &= !std::isnan(x1);
-            const float y1 = screen_points[3 * b_index + 1];
-            valid &= !std::isnan(y1);
-            const float x2 = screen_points[3 * c_index + 0];
-            valid &= !std::isnan(x2);
-            const float y2 = screen_points[3 * c_index + 1];
-            valid &= !std::isnan(y2);
-            if (valid) {
-                SDL_RenderLine(renderer, x0, y0, x1, y1);
-                SDL_RenderLine(renderer, x1, y1, x2, y2);
-                SDL_RenderLine(renderer, x2, y2, x0, y0);
+
+    if (render_neighbors) {
+        convex_hull(
+            renderer_faces,
+            renderer_points_x,
+            renderer_points_y,
+            renderer_points_z,
+            num_points
+        );
+        SDL_SetRenderDrawColor(renderer, 128, 128, 128, SDL_ALPHA_OPAQUE);
+        for (int i = 0; i < num_points; ++i) { renderer_neighbors[i] = 0; }
+        for (int i = 0; i < num_faces; ++i) {
+            const int a_index = renderer_faces[3 * i + 0];
+            const int b_index = renderer_faces[3 * i + 1];
+            const int c_index = renderer_faces[3 * i + 2];
+            if ((a_index >= 0) & (b_index >= 0) & (c_index >= 0)) {
+                ++renderer_neighbors[a_index];
+                ++renderer_neighbors[b_index];
+                ++renderer_neighbors[c_index];
+                bool valid = true;
+                const float x0 = screen_points[3 * a_index + 0];
+                valid &= !std::isnan(x0);
+                const float y0 = screen_points[3 * a_index + 1];
+                valid &= !std::isnan(y0);
+                const float x1 = screen_points[3 * b_index + 0];
+                valid &= !std::isnan(x1);
+                const float y1 = screen_points[3 * b_index + 1];
+                valid &= !std::isnan(y1);
+                const float x2 = screen_points[3 * c_index + 0];
+                valid &= !std::isnan(x2);
+                const float y2 = screen_points[3 * c_index + 1];
+                valid &= !std::isnan(y2);
+                if (valid) {
+                    SDL_RenderLine(renderer, x0, y0, x1, y1);
+                    SDL_RenderLine(renderer, x1, y1, x2, y2);
+                    SDL_RenderLine(renderer, x2, y2, x0, y0);
+                }
             }
         }
-    }
-
-    for (int i = 0; i < num_points; ++i) {
-        switch (renderer_neighbors[i]) {
-            case 4:
-                renderer_colors[i] = {1.0f, 1.0f, 0.0f, SDL_ALPHA_OPAQUE_FLOAT};
-                break;
-            case 5:
-                renderer_colors[i] = {1.0f, 0.0f, 0.0f, SDL_ALPHA_OPAQUE_FLOAT};
-                break;
-            case 6:
-                renderer_colors[i] = {0.0f, 1.0f, 0.0f, SDL_ALPHA_OPAQUE_FLOAT};
-                break;
-            case 7:
-                renderer_colors[i] = {0.0f, 0.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT};
-                break;
-            case 8:
-                renderer_colors[i] = {1.0f, 0.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT};
-                break;
-            default:
-                renderer_colors[i] = {1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT};
-                break;
+        for (int i = 0; i < num_points; ++i) {
+            switch (renderer_neighbors[i]) {
+                case 4: renderer_colors[i] = YELLOW; break;
+                case 5: renderer_colors[i] = RED; break;
+                case 6: renderer_colors[i] = GREEN; break;
+                case 7: renderer_colors[i] = BLUE; break;
+                case 8: renderer_colors[i] = MAGENTA; break;
+                default: renderer_colors[i] = WHITE; break;
+            }
         }
     }
 
@@ -611,7 +629,7 @@ SDL_AppResult SDL_AppIterate(void *) {
     }
 
     char debug_message_buffer[256];
-    SDL_SetRenderScale(renderer, 1.5f * base_scale, 1.5f * base_scale);
+    SDL_SetRenderScale(renderer, 2.0f * base_scale, 2.0f * base_scale);
     std::snprintf(
         debug_message_buffer,
         sizeof(debug_message_buffer),
