@@ -3,13 +3,8 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
-#include <iostream>
-#include <unordered_map>
+#include <tuple>
 #include <vector>
-
-#include <CGAL/Polyhedron_3.h>
-#include <CGAL/Simple_cartesian.h>
-#include <CGAL/convex_hull_3.h>
 
 
 struct Vector3D {
@@ -43,9 +38,72 @@ static inline Vector3D cross(const Vector3D &v, const Vector3D &w) {
 }
 
 
-template <typename T>
-static inline bool contains(const std::vector<T> &items, const T &item) {
-    return std::find(items.begin(), items.end(), item) != items.end();
+constexpr int INVALID_INDEX = -1;
+
+
+static inline void find_initial_tetrahedron(
+    int &a_index,
+    int &b_index,
+    int &c_index,
+    int &d_index,
+    const double *__restrict__ points_x,
+    const double *__restrict__ points_y,
+    const double *__restrict__ points_z,
+    int num_points
+) {
+    // Return early if there aren't enough vertices to form a tetrahedron.
+    if (num_points < 4) {
+        a_index = INVALID_INDEX;
+        b_index = INVALID_INDEX;
+        c_index = INVALID_INDEX;
+        d_index = INVALID_INDEX;
+        return;
+    }
+    // Find four vertices that lie furthest along the following directions:
+    // A: (+1, +1, +1)
+    // B: (+1, -1, -1)
+    // C: (-1, +1, -1)
+    // D: (-1, -1, +1)
+    // These directions correspond to four opposite corners of a cube,
+    // which form a regular tetrahedron.
+    a_index = 0;
+    b_index = 0;
+    c_index = 0;
+    d_index = 0;
+    double a_best = points_x[0] + points_y[0] + points_z[0];
+    double b_best = points_x[0] - points_y[0] - points_z[0];
+    double c_best = points_y[0] - points_z[0] - points_x[0];
+    double d_best = points_z[0] - points_x[0] - points_y[0];
+    for (int i = 1; i < num_points; ++i) {
+        const double a_score = points_x[i] + points_y[i] + points_z[i];
+        const double b_score = points_x[i] - points_y[i] - points_z[i];
+        const double c_score = points_y[i] - points_z[i] - points_x[i];
+        const double d_score = points_z[i] - points_x[i] - points_y[i];
+        if (a_score > a_best) {
+            a_index = i;
+            a_best = a_score;
+        }
+        if (b_score > b_best) {
+            b_index = i;
+            b_best = b_score;
+        }
+        if (c_score > c_best) {
+            c_index = i;
+            c_best = c_score;
+        }
+        if (d_score > d_best) {
+            d_index = i;
+            d_best = d_score;
+        }
+    }
+    // Ensure that all four vertices found are distinct.
+    if ((a_index == b_index) | (a_index == c_index) | (a_index == d_index) |
+        (b_index == c_index) | (b_index == d_index) | (c_index == d_index)) {
+        a_index = INVALID_INDEX;
+        b_index = INVALID_INDEX;
+        c_index = INVALID_INDEX;
+        d_index = INVALID_INDEX;
+    }
 }
 
 
@@ -60,9 +118,6 @@ static void recursive_triangulate(
     const int a_index = face_indices.i;
     const int b_index = face_indices.j;
     const int c_index = face_indices.k;
-    assert(contains(point_indices, a_index));
-    assert(contains(point_indices, b_index));
-    assert(contains(point_indices, c_index));
 
     assert(point_indices.size() >= 3);
     if (point_indices.size() == 3) {
@@ -74,7 +129,7 @@ static void recursive_triangulate(
     const Vector3D b{points_x[b_index], points_y[b_index], points_z[b_index]};
     const Vector3D c{points_x[c_index], points_y[c_index], points_z[c_index]};
     const Vector3D normal = cross(b - a, c - a);
-    int f_index = -1;
+    int f_index = INVALID_INDEX;
     double f_best = 0.0;
     for (int i : point_indices) {
         const Vector3D p{points_x[i], points_y[i], points_z[i]};
@@ -85,7 +140,7 @@ static void recursive_triangulate(
         }
     }
     if ((f_index == a_index) | (f_index == b_index) | (f_index == c_index) |
-        (f_index == -1)) {
+        (f_index == INVALID_INDEX)) {
         return;
     }
     const Vector3D f{points_x[f_index], points_y[f_index], points_z[f_index]};
@@ -133,40 +188,21 @@ void triangulate(
     const double *__restrict__ points_z,
     int num_points
 ) {
-    int a_index = 0;
-    int b_index = 0;
-    int c_index = 0;
-    int d_index = 0;
-    double a_best = points_x[0] + points_y[0] + points_z[0];
-    double b_best = points_x[0] - points_y[0] - points_z[0];
-    double c_best = points_y[0] - points_z[0] - points_x[0];
-    double d_best = points_z[0] - points_x[0] - points_y[0];
-    for (int i = 1; i < num_points; ++i) {
-        const double a_score = points_x[i] + points_y[i] + points_z[i];
-        const double b_score = points_x[i] - points_y[i] - points_z[i];
-        const double c_score = points_y[i] - points_z[i] - points_x[i];
-        const double d_score = points_z[i] - points_x[i] - points_y[i];
-        if (a_score > a_best) {
-            a_index = i;
-            a_best = a_score;
-        }
-        if (b_score > b_best) {
-            b_index = i;
-            b_best = b_score;
-        }
-        if (c_score > c_best) {
-            c_index = i;
-            c_best = c_score;
-        }
-        if (d_score > d_best) {
-            d_index = i;
-            d_best = d_score;
-        }
-    }
     const int num_faces = 2 * num_points - 4;
-    if ((a_index == b_index) | (a_index == c_index) | (a_index == d_index) |
-        (b_index == c_index) | (b_index == d_index) | (c_index == d_index)) {
-        for (int i = 0; i < 3 * num_faces; ++i) { faces[i] = -1; }
+    int a_index, b_index, c_index, d_index;
+    find_initial_tetrahedron(
+        a_index,
+        b_index,
+        c_index,
+        d_index,
+        points_x,
+        points_y,
+        points_z,
+        num_points
+    );
+    if ((a_index == INVALID_INDEX) | (b_index == INVALID_INDEX) |
+        (c_index == INVALID_INDEX) | (d_index == INVALID_INDEX)) {
+        for (int i = 0; i < 3 * num_faces; ++i) { faces[i] = INVALID_INDEX; }
         return;
     }
     const Vector3D a{points_x[a_index], points_y[a_index], points_z[a_index]};
@@ -236,14 +272,9 @@ void triangulate(
             faces[k++] = face.k;
         }
     } else {
-        for (int i = 0; i < 3 * num_faces; ++i) { faces[i] = -1; }
+        for (int i = 0; i < 3 * num_faces; ++i) { faces[i] = INVALID_INDEX; }
     }
 }
-
-
-typedef CGAL::Simple_cartesian<double> CGALKernel;
-typedef CGAL::Polyhedron_3<CGALKernel> CGALPolyhedron;
-typedef CGALKernel::Point_3 CGALPoint;
 
 
 void convex_hull(
@@ -253,38 +284,5 @@ void convex_hull(
     const double *__restrict__ points_z,
     int num_points
 ) {
-
-    using vec_size = std::vector<CGALPoint>::size_type;
-    using poly_size = CGALPolyhedron::size_type;
-
-    std::vector<CGALPoint> points;
-    points.reserve(static_cast<vec_size>(num_points));
-    for (int i = 0; i < num_points; ++i) {
-        points.emplace_back(points_x[i], points_y[i], points_z[i]);
-    }
-
-    CGALPolyhedron poly;
-    CGAL::convex_hull_3(points.begin(), points.end(), poly);
-
-    const poly_size expected_num_faces =
-        static_cast<poly_size>(2 * num_points - 4);
-    const poly_size num_faces = poly.size_of_facets();
-    if (num_faces != expected_num_faces) {
-        std::fill(faces, faces + (6 * num_points - 12), -1);
-        return;
-    }
-
-    std::unordered_map<CGALPoint, int> index_map;
-    for (int i = 0; i < num_points; ++i) {
-        index_map[points[static_cast<vec_size>(i)]] = i;
-    }
-
-    int k = 0;
-    for (auto f = poly.facets_begin(); f != poly.facets_end(); ++f) {
-        auto h = f->halfedge();
-        for (int i = 0; i < 3; ++i) {
-            faces[k++] = index_map[h->vertex()->point()];
-            h = h->next();
-        }
-    }
+    triangulate(faces, points_x, points_y, points_z, num_points);
 }
