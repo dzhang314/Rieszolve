@@ -98,6 +98,13 @@ struct HighPrecisionVectorAccumulator {
         two_sum(terms[1], x);
     }
 
+    HighPrecisionVectorAccumulator &
+    operator+=(const HighPrecisionVectorAccumulator &other) noexcept {
+        add(other.terms[0]);
+        add(other.terms[1]);
+        return *this;
+    }
+
 }; // struct HighPrecisionVectorAccumulator
 #endif // RIESZOLVE_USE_AVX512
 
@@ -112,6 +119,8 @@ double compute_coulomb_energy(
     const __m512d ONE_VECTOR = _mm512_set1_pd(1.0);
     HighPrecisionVectorAccumulator energy_vector;
     HighPrecisionAccumulator energy_scalar;
+#pragma omp parallel for schedule(static)                                      \
+    reduction(+ : energy_vector, energy_scalar)
     for (int i = 0; i < num_points; ++i) {
         const double xi = points_x[i];
         const double yi = points_y[i];
@@ -201,6 +210,7 @@ void compute_coulomb_forces(
 ) {
 #ifdef RIESZOLVE_USE_AVX512
     const __m512d ONE_VECTOR = _mm512_set1_pd(1.0);
+#pragma omp parallel for schedule(static)
     for (int i = 0; i < num_points; ++i) {
         const double xi = points_x[i];
         const double yi = points_y[i];
