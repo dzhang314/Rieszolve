@@ -10,9 +10,9 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 
-#include "ConvexHull.hpp"
 #include "RenderCircle.hpp"
 #include "RieszolveOptimizer.hpp"
+#include "TriangleMesh.hpp"
 
 
 static inline float rand_float() {
