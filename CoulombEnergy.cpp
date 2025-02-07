@@ -10,9 +10,11 @@ using std::size_t;
 #include <cstring>
 using std::memcpy;
 
+#ifndef RIESZOLVE_DISABLE_AVX512
 #ifdef __AVX512F__
 #define RIESZOLVE_USE_AVX512
 #endif // __AVX512F__
+#endif // RIESZOLVE_DISABLE_AVX512
 
 #ifdef RIESZOLVE_USE_AVX512
 #include <immintrin.h>
@@ -80,9 +82,11 @@ struct HighPrecisionAccumulator {
 
 }; // struct HighPrecisionAccumulator
 
+#ifdef _OPENMP
 #pragma omp declare reduction(                                                 \
         + : HighPrecisionAccumulator : omp_out += omp_in                       \
 ) initializer(omp_priv = HighPrecisionAccumulator{})
+#endif // _OPENMP
 
 
 #ifdef RIESZOLVE_USE_AVX512
@@ -112,9 +116,11 @@ struct HighPrecisionVectorAccumulator {
 
 }; // struct HighPrecisionVectorAccumulator
 
+#ifdef _OPENMP
 #pragma omp declare reduction(                                                 \
         + : HighPrecisionVectorAccumulator : omp_out += omp_in                 \
 ) initializer(omp_priv = HighPrecisionVectorAccumulator{})
+#endif // _OPENMP
 
 #endif // RIESZOLVE_USE_AVX512
 
@@ -129,8 +135,10 @@ double compute_coulomb_energy(
     const __m512d ONE_VECTOR = _mm512_set1_pd(1.0);
     HighPrecisionVectorAccumulator energy_vector;
     HighPrecisionAccumulator energy_scalar;
+#ifdef _OPENMP
 #pragma omp parallel for schedule(static)                                      \
     reduction(+ : energy_vector, energy_scalar)
+#endif // _OPENMP
     for (int i = 0; i < num_points; ++i) {
         const double xi = points_x[i];
         const double yi = points_y[i];
@@ -188,7 +196,9 @@ double compute_coulomb_energy(
     return energy_vector.to_double() + energy_scalar.to_double();
 #else
     HighPrecisionAccumulator energy;
+#ifdef _OPENMP
 #pragma omp parallel for schedule(static) reduction(+ : energy)
+#endif // _OPENMP
     for (int i = 0; i < num_points; ++i) {
         const double xi = points_x[i];
         const double yi = points_y[i];
@@ -220,7 +230,9 @@ void compute_coulomb_forces(
 ) {
 #ifdef RIESZOLVE_USE_AVX512
     const __m512d ONE_VECTOR = _mm512_set1_pd(1.0);
+#ifdef _OPENMP
 #pragma omp parallel for schedule(static)
+#endif // _OPENMP
     for (int i = 0; i < num_points; ++i) {
         const double xi = points_x[i];
         const double yi = points_y[i];
@@ -298,7 +310,9 @@ void compute_coulomb_forces(
         forces_z[i] = fz_vector.to_double() + fz_scalar.to_double();
     }
 #else
+#ifdef _OPENMP
 #pragma omp parallel for schedule(static)
+#endif // _OPENMP
     for (int i = 0; i < num_points; ++i) {
         const double xi = points_x[i];
         const double yi = points_y[i];
@@ -356,7 +370,7 @@ double constrain_forces(
             proj_x * proj_x + proj_y * proj_y + proj_z * proj_z
         );
     }
-    return sqrt(force_norm_squared.to_double());
+    return force_norm_squared.to_double();
 }
 
 
@@ -415,15 +429,21 @@ double compute_step_direction(
         if (force_norm_squared > overlap) {
             const double beta =
                 (force_norm_squared - overlap) / prev_norm_squared;
+#ifdef _OPENMP
 #pragma omp simd simdlen(8) aligned(step_x, forces_x : 64)
+#endif // _OPENMP
             for (int i = 0; i < num_points; ++i) {
                 step_x[i] = fma(beta, step_x[i], forces_x[i]);
             }
+#ifdef _OPENMP
 #pragma omp simd simdlen(8) aligned(step_y, forces_y : 64)
+#endif // _OPENMP
             for (int i = 0; i < num_points; ++i) {
                 step_y[i] = fma(beta, step_y[i], forces_y[i]);
             }
+#ifdef _OPENMP
 #pragma omp simd simdlen(8) aligned(step_z, forces_z : 64)
+#endif // _OPENMP
             for (int i = 0; i < num_points; ++i) {
                 step_z[i] = fma(beta, step_z[i], forces_z[i]);
             }
@@ -450,8 +470,10 @@ static inline void move_points(
     double step_size,
     int num_points
 ) {
+#ifdef _OPENMP
 #pragma omp simd simdlen(8)                                                    \
     aligned(points_x, points_y, points_z, step_x, step_y, step_z : 64)
+#endif // _OPENMP
     for (int i = 0; i < num_points; ++i) {
         const double x = points_x[i] + step_size * step_x[i];
         const double y = points_y[i] + step_size * step_y[i];
@@ -478,9 +500,11 @@ static inline void move_points(
     double step_size,
     int num_points
 ) {
+#ifdef _OPENMP
 #pragma omp simd simdlen(8)                                                    \
     aligned(new_points_x, new_points_y, new_points_z : 64)                     \
     aligned(points_x, points_y, points_z, step_x, step_y, step_z : 64)
+#endif // _OPENMP
     for (int i = 0; i < num_points; ++i) {
         const double x = points_x[i] + step_size * step_x[i];
         const double y = points_y[i] + step_size * step_y[i];

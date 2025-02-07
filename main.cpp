@@ -4,14 +4,15 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <new>
 
 #define SDL_MAIN_USE_CALLBACKS 1
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 
 #include "ConvexHull.hpp"
-#include "CoulombEnergy.hpp"
 #include "RenderCircle.hpp"
+#include "RieszolveOptimizer.hpp"
 
 
 static inline float rand_float() {
@@ -48,41 +49,23 @@ constexpr int MAX_NUM_FACES = 2 * MAX_NUM_POINTS - 4;
 
 static int num_points = 0;
 static int num_faces = 0;
-static int num_iterations = 0;
 static SDL_Time last_draw_time = 0;
 static SDL_Time last_step_time = 0;
 static SDL_Time last_draw_duration = 0;
 static SDL_Time last_step_duration = 0;
 static double angle = 0.0;
 static int angular_velocity = 0;
-static double energy = 0.0;
-static double force_norm = 0.0;
-static double step_size = DBL_EPSILON;
-static double step_norm = 0.0;
-static double step_length = 0.0;
 static bool conjugate_gradient = false;
 static bool render_forces = false;
 static bool render_neighbors = false;
 static bool randomize_requested = false;
 static bool quit = false;
 
+static RieszolveOptimizer *optimizer = nullptr;
+static SDL_Thread *optimizer_thread = nullptr;
+
 static SDL_Window *window = nullptr;
 static SDL_Renderer *renderer = nullptr;
-static double *optimizer_points_x = nullptr;
-static double *optimizer_points_y = nullptr;
-static double *optimizer_points_z = nullptr;
-static double *optimizer_forces_x = nullptr;
-static double *optimizer_forces_y = nullptr;
-static double *optimizer_forces_z = nullptr;
-static double *optimizer_prev_forces_x = nullptr;
-static double *optimizer_prev_forces_y = nullptr;
-static double *optimizer_prev_forces_z = nullptr;
-static double *optimizer_step_x = nullptr;
-static double *optimizer_step_y = nullptr;
-static double *optimizer_step_z = nullptr;
-static double *optimizer_temp_x = nullptr;
-static double *optimizer_temp_y = nullptr;
-static double *optimizer_temp_z = nullptr;
 static SDL_RWLock *renderer_lock = nullptr;
 static double *renderer_points_x = nullptr;
 static double *renderer_points_y = nullptr;
@@ -96,89 +79,8 @@ static float *screen_points = nullptr;
 static float *screen_forces = nullptr;
 static SDL_FColor *renderer_colors = nullptr;
 static SDL_Vertex *renderer_vertices = nullptr;
-static SDL_Thread *optimizer_thread = nullptr;
 
 } // namespace GlobalVariables
-
-
-static inline double update_forces() {
-    using namespace GlobalVariables;
-    const std::size_t size =
-        static_cast<std::size_t>(num_points) * sizeof(double);
-    std::memcpy(optimizer_prev_forces_x, optimizer_forces_x, size);
-    std::memcpy(optimizer_prev_forces_y, optimizer_forces_y, size);
-    std::memcpy(optimizer_prev_forces_z, optimizer_forces_z, size);
-    compute_coulomb_forces(
-        optimizer_forces_x,
-        optimizer_forces_y,
-        optimizer_forces_z,
-        optimizer_points_x,
-        optimizer_points_y,
-        optimizer_points_z,
-        num_points
-    );
-    return constrain_forces(
-        optimizer_forces_x,
-        optimizer_forces_y,
-        optimizer_forces_z,
-        optimizer_points_x,
-        optimizer_points_y,
-        optimizer_points_z,
-        num_points
-    );
-}
-
-
-static inline void send_data_to_renderer() {
-    using namespace GlobalVariables;
-    const std::size_t size =
-        static_cast<std::size_t>(num_points) * sizeof(double);
-    SDL_LockRWLockForWriting(renderer_lock);
-    std::memcpy(renderer_points_x, optimizer_points_x, size);
-    std::memcpy(renderer_points_y, optimizer_points_y, size);
-    std::memcpy(renderer_points_z, optimizer_points_z, size);
-    std::memcpy(renderer_forces_x, optimizer_forces_x, size);
-    std::memcpy(renderer_forces_y, optimizer_forces_y, size);
-    std::memcpy(renderer_forces_z, optimizer_forces_z, size);
-    SDL_UnlockRWLock(renderer_lock);
-}
-
-
-static inline void randomize_points() {
-    using namespace GlobalVariables;
-    for (int i = 0; i < MAX_NUM_POINTS; ++i) {
-        double x, y, z;
-        while (true) {
-            x = 2.0 * static_cast<double>(rand_float()) - 1.0;
-            y = 2.0 * static_cast<double>(rand_float()) - 1.0;
-            z = 2.0 * static_cast<double>(rand_float()) - 1.0;
-            const double norm_squared = x * x + y * y + z * z;
-            if (norm_squared <= 1.0) {
-                const double inv_norm = 1.0 / std::sqrt(norm_squared);
-                x *= inv_norm;
-                y *= inv_norm;
-                z *= inv_norm;
-                break;
-            }
-        }
-        optimizer_points_x[i] = x;
-        optimizer_points_y[i] = y;
-        optimizer_points_z[i] = z;
-    }
-    energy = compute_coulomb_energy(
-        optimizer_points_x, optimizer_points_y, optimizer_points_z, num_points
-    );
-    force_norm = update_forces();
-    const std::size_t size =
-        static_cast<std::size_t>(num_points) * sizeof(double);
-    std::memcpy(optimizer_prev_forces_x, optimizer_forces_x, size);
-    std::memcpy(optimizer_prev_forces_y, optimizer_forces_y, size);
-    std::memcpy(optimizer_prev_forces_z, optimizer_forces_z, size);
-    std::memcpy(optimizer_step_x, optimizer_forces_x, size);
-    std::memcpy(optimizer_step_y, optimizer_forces_y, size);
-    std::memcpy(optimizer_step_z, optimizer_forces_z, size);
-    send_data_to_renderer();
-}
 
 
 static inline void randomize_colors() {
@@ -191,52 +93,60 @@ static inline int SDLCALL run_optimizer(void *) {
     using namespace GlobalVariables;
     while (!quit) {
         if (randomize_requested) {
-            randomize_points();
-            num_iterations = 0;
-            step_size = DBL_EPSILON;
+            const unsigned int seed = static_cast<unsigned int>(time(nullptr));
+            optimizer->randomize_points(seed);
             randomize_requested = false;
         }
-        double next_step_size = step_size;
-        const double next_step_norm = compute_step_direction(
-            optimizer_step_x,
-            optimizer_step_y,
-            optimizer_step_z,
-            optimizer_forces_x,
-            optimizer_forces_y,
-            optimizer_forces_z,
-            optimizer_prev_forces_x,
-            optimizer_prev_forces_y,
-            optimizer_prev_forces_z,
-            num_points,
-            conjugate_gradient
+        // double next_step_size = step_size;
+        // const double next_step_norm = compute_step_direction(
+        //     optimizer_step_x,
+        //     optimizer_step_y,
+        //     optimizer_step_z,
+        //     optimizer_forces_x,
+        //     optimizer_forces_y,
+        //     optimizer_forces_z,
+        //     optimizer_prev_forces_x,
+        //     optimizer_prev_forces_y,
+        //     optimizer_prev_forces_z,
+        //     num_points,
+        //     conjugate_gradient
+        // );
+        // const double next_energy = quadratic_line_search(
+        //     optimizer_points_x,
+        //     optimizer_points_y,
+        //     optimizer_points_z,
+        //     optimizer_temp_x,
+        //     optimizer_temp_y,
+        //     optimizer_temp_z,
+        //     next_step_size,
+        //     optimizer_step_x,
+        //     optimizer_step_y,
+        //     optimizer_step_z,
+        //     energy,
+        //     num_points
+        // );
+        // force_norm = update_forces();
+        SDL_LockRWLockForWriting(renderer_lock);
+        optimizer->output_data(
+            renderer_points_x,
+            renderer_points_y,
+            renderer_points_z,
+            renderer_forces_x,
+            renderer_forces_y,
+            renderer_forces_z
         );
-        const double next_energy = quadratic_line_search(
-            optimizer_points_x,
-            optimizer_points_y,
-            optimizer_points_z,
-            optimizer_temp_x,
-            optimizer_temp_y,
-            optimizer_temp_z,
-            next_step_size,
-            optimizer_step_x,
-            optimizer_step_y,
-            optimizer_step_z,
-            energy,
-            num_points
-        );
-        force_norm = update_forces();
-        send_data_to_renderer();
-        if (next_step_size > 0.0) {
-            ++num_iterations;
-            energy = next_energy;
-            step_size = next_step_size;
-            step_norm = next_step_norm;
-            step_length = step_size * step_norm;
-            SDL_Time current_time;
-            SDL_GetCurrentTime(&current_time);
-            last_step_duration = current_time - last_step_time;
-            last_step_time = current_time;
-        }
+        SDL_UnlockRWLock(renderer_lock);
+        // if (next_step_size > 0.0) {
+        //     ++num_iterations;
+        //     energy = next_energy;
+        //     step_size = next_step_size;
+        //     step_norm = next_step_norm;
+        //     step_length = step_size * step_norm;
+        //     SDL_Time current_time;
+        //     SDL_GetCurrentTime(&current_time);
+        //     last_step_duration = current_time - last_step_time;
+        //     last_step_time = current_time;
+        // }
     }
     return EXIT_SUCCESS;
 }
@@ -362,22 +272,6 @@ SDL_AppResult SDL_AppInit(void **, int argc, char **argv) {
         return SDL_APP_FAILURE;
     }
 
-    ALLOCATE_ALIGNED_MEMORY(optimizer_points_x, double, MAX_NUM_POINTS);
-    ALLOCATE_ALIGNED_MEMORY(optimizer_points_y, double, MAX_NUM_POINTS);
-    ALLOCATE_ALIGNED_MEMORY(optimizer_points_z, double, MAX_NUM_POINTS);
-    ALLOCATE_ALIGNED_MEMORY(optimizer_forces_x, double, MAX_NUM_POINTS);
-    ALLOCATE_ALIGNED_MEMORY(optimizer_forces_y, double, MAX_NUM_POINTS);
-    ALLOCATE_ALIGNED_MEMORY(optimizer_forces_z, double, MAX_NUM_POINTS);
-    ALLOCATE_ALIGNED_MEMORY(optimizer_prev_forces_x, double, MAX_NUM_POINTS);
-    ALLOCATE_ALIGNED_MEMORY(optimizer_prev_forces_y, double, MAX_NUM_POINTS);
-    ALLOCATE_ALIGNED_MEMORY(optimizer_prev_forces_z, double, MAX_NUM_POINTS);
-    ALLOCATE_ALIGNED_MEMORY(optimizer_step_x, double, MAX_NUM_POINTS);
-    ALLOCATE_ALIGNED_MEMORY(optimizer_step_y, double, MAX_NUM_POINTS);
-    ALLOCATE_ALIGNED_MEMORY(optimizer_step_z, double, MAX_NUM_POINTS);
-    ALLOCATE_ALIGNED_MEMORY(optimizer_temp_x, double, MAX_NUM_POINTS);
-    ALLOCATE_ALIGNED_MEMORY(optimizer_temp_y, double, MAX_NUM_POINTS);
-    ALLOCATE_ALIGNED_MEMORY(optimizer_temp_z, double, MAX_NUM_POINTS);
-
     renderer_lock = SDL_CreateRWLock();
     if (!renderer_lock) {
         SDL_LogCritical(SDL_LOG_CATEGORY_ERROR, "Failed to create lock.\n");
@@ -400,7 +294,16 @@ SDL_AppResult SDL_AppInit(void **, int argc, char **argv) {
         renderer_vertices, SDL_Vertex, NUM_CIRCLE_VERTICES * MAX_NUM_POINTS
     );
 
-    randomize_points();
+    optimizer = new (std::nothrow) RieszolveOptimizer(num_points);
+    if ((!optimizer) || (!optimizer->is_allocated())) {
+        SDL_LogCritical(
+            SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory for optimizer.\n"
+        );
+        return SDL_APP_FAILURE;
+    }
+
+    const unsigned int seed = static_cast<unsigned int>(time(nullptr));
+    optimizer->randomize_points(seed);
     randomize_colors();
 
     optimizer_thread =
@@ -467,7 +370,7 @@ SDL_AppResult SDL_AppIterate(void *) {
     const float origin_x = 0.5f * static_cast<float>(width);
     const float origin_y = 0.5f * static_cast<float>(height);
     const float scale = 0.375f * static_cast<float>(std::min(width, height));
-    const double rms_force = force_norm / std::sqrt(num_points);
+    const double rms_force = optimizer->get_rms_force();
     const float force_scale = 0.125f * scale / static_cast<float>(rms_force);
 
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
@@ -655,7 +558,7 @@ SDL_AppResult SDL_AppIterate(void *) {
         debug_message_buffer,
         sizeof(debug_message_buffer),
         "Iteration count:%8d",
-        num_iterations
+        optimizer->get_num_iterations()
     );
     SDL_RenderDebugText(renderer, 0.0f, 30.0f, debug_message_buffer);
     std::snprintf(
@@ -676,7 +579,7 @@ SDL_AppResult SDL_AppIterate(void *) {
         debug_message_buffer,
         sizeof(debug_message_buffer),
         "Coulomb energy: %.15e",
-        energy
+        optimizer->get_energy()
     );
     SDL_RenderDebugText(renderer, 0.0f, 60.0f, debug_message_buffer);
     std::snprintf(
@@ -690,14 +593,14 @@ SDL_AppResult SDL_AppIterate(void *) {
         debug_message_buffer,
         sizeof(debug_message_buffer),
         "Step size:      %.15e",
-        step_size
+        optimizer->get_last_step_size()
     );
     SDL_RenderDebugText(renderer, 0.0f, 80.0f, debug_message_buffer);
     std::snprintf(
         debug_message_buffer,
         sizeof(debug_message_buffer),
         "Step length:    %.15e",
-        step_length
+        optimizer->get_last_step_length()
     );
     SDL_RenderDebugText(renderer, 0.0f, 90.0f, debug_message_buffer);
 
@@ -724,21 +627,6 @@ void SDL_AppQuit(void *, SDL_AppResult) {
     FREE_ALIGNED_MEMORY(renderer_points_y);
     FREE_ALIGNED_MEMORY(renderer_points_x);
     if (renderer_lock) { SDL_DestroyRWLock(renderer_lock); }
-    FREE_ALIGNED_MEMORY(optimizer_temp_z);
-    FREE_ALIGNED_MEMORY(optimizer_temp_y);
-    FREE_ALIGNED_MEMORY(optimizer_temp_x);
-    FREE_ALIGNED_MEMORY(optimizer_step_z);
-    FREE_ALIGNED_MEMORY(optimizer_step_y);
-    FREE_ALIGNED_MEMORY(optimizer_step_x);
-    FREE_ALIGNED_MEMORY(optimizer_prev_forces_z);
-    FREE_ALIGNED_MEMORY(optimizer_prev_forces_y);
-    FREE_ALIGNED_MEMORY(optimizer_prev_forces_x);
-    FREE_ALIGNED_MEMORY(optimizer_forces_z);
-    FREE_ALIGNED_MEMORY(optimizer_forces_y);
-    FREE_ALIGNED_MEMORY(optimizer_forces_x);
-    FREE_ALIGNED_MEMORY(optimizer_points_z);
-    FREE_ALIGNED_MEMORY(optimizer_points_y);
-    FREE_ALIGNED_MEMORY(optimizer_points_x);
     if (renderer) { SDL_DestroyRenderer(renderer); }
     if (window) { SDL_DestroyWindow(window); }
 }
