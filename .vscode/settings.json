@@ -5,6 +5,7 @@
         "Rieszolve",
         "SDLCALL",
         "SDLK",
-        "simdlen"
+        "simdlen",
+        "xpay"
     ]
 }

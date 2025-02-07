@@ -1,62 +1,19 @@
 #include "RieszolveOptimizer.hpp"
 
+#include <cfloat>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
 
-#include "CoulombEnergy.hpp"
-
-
-void RieszolveOptimizer::copy_subarray(
-    double *__restrict__ dst, const double *__restrict__ src
-) noexcept {
-    const std::size_t size =
-        static_cast<std::size_t>(num_points) * sizeof(double);
-    std::memcpy(dst, src, size);
-}
-
-
-void RieszolveOptimizer::copy_triple_subarray(
-    double *__restrict__ dst, const double *__restrict__ src
-) noexcept {
-    const std::size_t size =
-        3 * CHUNK_SIZE * static_cast<std::size_t>(num_chunks) * sizeof(double);
-    std::memcpy(dst, src, size);
-}
-
-
-void RieszolveOptimizer::update_forces() noexcept {
-    copy_triple_subarray(prev_forces_x(), forces_x());
-    prev_force_norm_squared = force_norm_squared;
-    compute_coulomb_forces(
-        forces_x(),
-        forces_y(),
-        forces_z(),
-        points_x(),
-        points_y(),
-        points_z(),
-        num_points
-    );
-    force_norm_squared = constrain_forces(
-        forces_x(),
-        forces_y(),
-        forces_z(),
-        points_x(),
-        points_y(),
-        points_z(),
-        num_points
-    );
-}
+#include "RieszKernels.hpp"
 
 
 RieszolveOptimizer::RieszolveOptimizer(int num_points_arg) noexcept {
     energy = std::nan("");
-    prev_energy = std::nan("");
     force_norm_squared = std::nan("");
     prev_force_norm_squared = std::nan("");
-    step_norm_squared = std::nan("");
-    prev_step_norm_squared = std::nan("");
     last_step_size = std::nan("");
+    last_step_length = std::nan("");
     num_points = num_points_arg;
     num_chunks = (num_points_arg + (CHUNK_SIZE - 1)) / CHUNK_SIZE;
     num_iterations = 0;
@@ -83,7 +40,7 @@ RieszolveOptimizer::~RieszolveOptimizer() noexcept {
 
 
 bool RieszolveOptimizer::is_allocated() const noexcept {
-    return (data != nullptr);
+    return static_cast<bool>(data);
 }
 
 
@@ -106,7 +63,49 @@ int RieszolveOptimizer::get_num_iterations() const noexcept {
 
 
 double RieszolveOptimizer::get_last_step_length() const noexcept {
-    return last_step_size * std::sqrt(prev_step_norm_squared);
+    return last_step_length;
+}
+
+
+void RieszolveOptimizer::copy_subarray(
+    double *__restrict__ dst, const double *__restrict__ src
+) noexcept {
+    const std::size_t size =
+        static_cast<std::size_t>(num_points) * sizeof(double);
+    std::memcpy(dst, src, size);
+}
+
+
+void RieszolveOptimizer::copy_triple_subarray(
+    double *__restrict__ dst, const double *__restrict__ src
+) noexcept {
+    const std::size_t size =
+        3 * CHUNK_SIZE * static_cast<std::size_t>(num_chunks) * sizeof(double);
+    std::memcpy(dst, src, size);
+}
+
+
+void RieszolveOptimizer::compute_energy_and_forces() noexcept {
+    copy_triple_subarray(prev_forces_x(), forces_x());
+    energy = compute_coulomb_forces(
+        forces_x(),
+        forces_y(),
+        forces_z(),
+        points_x(),
+        points_y(),
+        points_z(),
+        num_points
+    );
+    prev_force_norm_squared = force_norm_squared;
+    force_norm_squared = constrain_forces(
+        forces_x(),
+        forces_y(),
+        forces_z(),
+        points_x(),
+        points_y(),
+        points_z(),
+        num_points
+    );
 }
 
 
@@ -139,23 +138,186 @@ void RieszolveOptimizer::randomize_points(unsigned int seed) noexcept {
         py[i] = y;
         pz[i] = z;
     }
-    energy = compute_coulomb_energy(px, py, pz, num_points);
-    prev_energy = energy;
-    update_forces();
+    compute_energy_and_forces();
     prev_force_norm_squared = force_norm_squared;
-    step_norm_squared = force_norm_squared;
-    prev_step_norm_squared = force_norm_squared;
     last_step_size = 0.0;
+    last_step_length = 0.0;
     num_iterations = 0;
     copy_triple_subarray(prev_forces_x(), forces_x());
     copy_triple_subarray(step_x(), forces_x());
 }
 
 
-void RieszolveOptimizer::gradient_descent_step() noexcept {}
+double RieszolveOptimizer::move_temp_points(double step_size) noexcept {
+    return move_points(
+        temp_points_x(),
+        temp_points_y(),
+        temp_points_z(),
+        points_x(),
+        points_y(),
+        points_z(),
+        step_x(),
+        step_y(),
+        step_z(),
+        step_size,
+        num_points
+    );
+}
 
 
-void RieszolveOptimizer::conjugate_gradient_step() noexcept {}
+bool RieszolveOptimizer::quadratic_line_search_helper(
+    double x1, double l1, double f0, double f1, double f2
+) noexcept {
+    const double delta_0 = f0 - f1;
+    const double delta_1 = f2 - f1;
+    const double delta_sum = delta_0 + delta_1;
+    const double numerator = (delta_0 + delta_0) + delta_sum;
+    const double denominator = delta_sum + delta_sum;
+    const double xq = x1 * (numerator / denominator);
+    const double lq = std::sqrt(move_temp_points(xq));
+    const double fq = compute_coulomb_energy(
+        temp_points_x(), temp_points_y(), temp_points_z(), num_points
+    );
+    if (fq <= f1) { // return (xq, fq)
+        last_step_size = xq;
+        last_step_length = lq;
+        energy = fq;
+        copy_triple_subarray(points_x(), temp_points_x());
+        ++num_iterations;
+        return true;
+    } else if (f1 < f0) { // return (x1, f1)
+        last_step_size = x1;
+        last_step_length = l1;
+        energy = f1;
+        move_points(
+            points_x(),
+            points_y(),
+            points_z(),
+            step_x(),
+            step_y(),
+            step_z(),
+            x1,
+            num_points
+        );
+        ++num_iterations;
+        return true;
+    } else { // return (0, f0)
+        return false;
+    }
+}
+
+
+bool RieszolveOptimizer::quadratic_line_search() noexcept {
+    const double f0 = energy;
+    double initial_step_size =
+        (last_step_size > 0.0) ? last_step_size : DBL_EPSILON;
+    double initial_step_length = std::sqrt(move_temp_points(initial_step_size));
+    while (initial_step_length == 0.0) {
+        initial_step_size += initial_step_size;
+        initial_step_length = std::sqrt(move_temp_points(initial_step_size));
+    }
+    const double initial_step_energy = compute_coulomb_energy(
+        temp_points_x(), temp_points_y(), temp_points_z(), num_points
+    );
+    if (!std::isfinite(initial_step_energy)) { // return (0, f0)
+        return false;
+    } else if (initial_step_energy <= f0) { // increase step size
+        const double x1 = initial_step_size;
+        const double l1 = initial_step_length;
+        const double f1 = initial_step_energy;
+        const double x2 = x1 + x1;
+        const double l2 = std::sqrt(move_temp_points(x2));
+        const double f2 = compute_coulomb_energy(
+            temp_points_x(), temp_points_y(), temp_points_z(), num_points
+        );
+        if (!std::isfinite(f2)) { // return (x1, f1)
+            last_step_size = x1;
+            last_step_length = l1;
+            energy = f1;
+            move_points(
+                points_x(),
+                points_y(),
+                points_z(),
+                step_x(),
+                step_y(),
+                step_z(),
+                x1,
+                num_points
+            );
+            ++num_iterations;
+            return true;
+        } else if (f2 > f1) { // perform quadratic interpolation
+            return quadratic_line_search_helper(x1, l1, f0, f1, f2);
+        } else { // return (x2, f2)
+            last_step_size = x2;
+            last_step_length = l2;
+            energy = f2;
+            copy_triple_subarray(points_x(), temp_points_x());
+            ++num_iterations;
+            return true;
+        }
+    } else { // decrease step size
+        double x2 = initial_step_size;
+        double l2 = initial_step_length;
+        double f2 = initial_step_energy;
+        while (true) {
+            const double x1 = 0.5 * x2;
+            const double l1 = std::sqrt(move_temp_points(x1));
+            if (!(l1 < l2)) { // return (0, f0)
+                return false;
+            }
+            const double f1 = compute_coulomb_energy(
+                temp_points_x(), temp_points_y(), temp_points_z(), num_points
+            );
+            if (f1 <= f0) { // perform quadratic interpolation
+                return quadratic_line_search_helper(x1, l1, f0, f1, f2);
+            }
+            x2 = x1;
+            l2 = l1;
+            f2 = f1;
+        }
+    }
+}
+
+
+bool RieszolveOptimizer::gradient_descent_step() noexcept {
+    copy_triple_subarray(step_x(), forces_x());
+    const bool success = quadratic_line_search();
+    if (success) { compute_energy_and_forces(); }
+    return success;
+}
+
+
+bool RieszolveOptimizer::conjugate_gradient_step() noexcept {
+    const double overlap = dot_product(
+        forces_x(),
+        forces_y(),
+        forces_z(),
+        prev_forces_x(),
+        prev_forces_y(),
+        prev_forces_z(),
+        num_points
+    );
+    if (force_norm_squared > overlap) {
+        const double beta =
+            (force_norm_squared - overlap) / prev_force_norm_squared;
+        xpay(
+            step_x(),
+            step_y(),
+            step_z(),
+            beta,
+            forces_x(),
+            forces_y(),
+            forces_z(),
+            num_points
+        );
+    } else {
+        copy_triple_subarray(step_x(), forces_x());
+    }
+    const bool success = quadratic_line_search();
+    if (success) { compute_energy_and_forces(); }
+    return success;
+}
 
 
 void RieszolveOptimizer::output_data(

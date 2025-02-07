@@ -9,12 +9,10 @@ class RieszolveOptimizer {
 
     double *data;
     double energy;
-    double prev_energy;
     double force_norm_squared;
     double prev_force_norm_squared;
-    double step_norm_squared;
-    double prev_step_norm_squared;
     double last_step_size;
+    double last_step_length;
     int num_points;
     int num_chunks;
     int num_iterations;
@@ -50,13 +48,20 @@ class RieszolveOptimizer {
     ) noexcept;
 
 
-    void update_forces() noexcept;
+    void compute_energy_and_forces() noexcept;
+    double move_temp_points(double step_size) noexcept;
+    bool quadratic_line_search_helper(
+        double x1, double l1, double f0, double f1, double f2
+    ) noexcept;
+    bool quadratic_line_search() noexcept;
 
 
 public:
 
 
     explicit RieszolveOptimizer(int num_points) noexcept;
+    RieszolveOptimizer(const RieszolveOptimizer &) = delete;
+    RieszolveOptimizer &operator=(const RieszolveOptimizer &) = delete;
     ~RieszolveOptimizer() noexcept;
     bool is_allocated() const noexcept;
 
@@ -69,8 +74,8 @@ public:
 
 
     void randomize_points(unsigned int seed) noexcept;
-    void gradient_descent_step() noexcept;
-    void conjugate_gradient_step() noexcept;
+    bool gradient_descent_step() noexcept;
+    bool conjugate_gradient_step() noexcept;
 
 
     void output_data(

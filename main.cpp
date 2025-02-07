@@ -97,56 +97,29 @@ static inline int SDLCALL run_optimizer(void *) {
             optimizer->randomize_points(seed);
             randomize_requested = false;
         }
-        // double next_step_size = step_size;
-        // const double next_step_norm = compute_step_direction(
-        //     optimizer_step_x,
-        //     optimizer_step_y,
-        //     optimizer_step_z,
-        //     optimizer_forces_x,
-        //     optimizer_forces_y,
-        //     optimizer_forces_z,
-        //     optimizer_prev_forces_x,
-        //     optimizer_prev_forces_y,
-        //     optimizer_prev_forces_z,
-        //     num_points,
-        //     conjugate_gradient
-        // );
-        // const double next_energy = quadratic_line_search(
-        //     optimizer_points_x,
-        //     optimizer_points_y,
-        //     optimizer_points_z,
-        //     optimizer_temp_x,
-        //     optimizer_temp_y,
-        //     optimizer_temp_z,
-        //     next_step_size,
-        //     optimizer_step_x,
-        //     optimizer_step_y,
-        //     optimizer_step_z,
-        //     energy,
-        //     num_points
-        // );
-        // force_norm = update_forces();
-        SDL_LockRWLockForWriting(renderer_lock);
-        optimizer->output_data(
-            renderer_points_x,
-            renderer_points_y,
-            renderer_points_z,
-            renderer_forces_x,
-            renderer_forces_y,
-            renderer_forces_z
-        );
-        SDL_UnlockRWLock(renderer_lock);
-        // if (next_step_size > 0.0) {
-        //     ++num_iterations;
-        //     energy = next_energy;
-        //     step_size = next_step_size;
-        //     step_norm = next_step_norm;
-        //     step_length = step_size * step_norm;
-        //     SDL_Time current_time;
-        //     SDL_GetCurrentTime(&current_time);
-        //     last_step_duration = current_time - last_step_time;
-        //     last_step_time = current_time;
-        // }
+        bool success;
+        if (conjugate_gradient) {
+            success = optimizer->conjugate_gradient_step();
+            if (!success) { success = optimizer->gradient_descent_step(); }
+        } else {
+            success = optimizer->gradient_descent_step();
+        }
+        if (success) {
+            SDL_LockRWLockForWriting(renderer_lock);
+            optimizer->output_data(
+                renderer_points_x,
+                renderer_points_y,
+                renderer_points_z,
+                renderer_forces_x,
+                renderer_forces_y,
+                renderer_forces_z
+            );
+            SDL_UnlockRWLock(renderer_lock);
+        }
+        SDL_Time current_time;
+        SDL_GetCurrentTime(&current_time);
+        last_step_duration = current_time - last_step_time;
+        last_step_time = current_time;
     }
     return EXIT_SUCCESS;
 }
