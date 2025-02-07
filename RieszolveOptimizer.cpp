@@ -13,7 +13,7 @@ RieszolveOptimizer::RieszolveOptimizer(int num_points_arg) noexcept {
     force_norm_squared = std::nan("");
     prev_force_norm_squared = std::nan("");
     last_step_size = std::nan("");
-    last_step_length = std::nan("");
+    last_step_length_squared = std::nan("");
     num_points = num_points_arg;
     num_chunks = (num_points_arg + (CHUNK_SIZE - 1)) / CHUNK_SIZE;
     num_iterations = 0;
@@ -62,8 +62,10 @@ int RieszolveOptimizer::get_num_iterations() const noexcept {
 }
 
 
-double RieszolveOptimizer::get_last_step_length() const noexcept {
-    return last_step_length;
+double RieszolveOptimizer::get_rms_step_length() const noexcept {
+    return std::sqrt(
+        last_step_length_squared / static_cast<double>(num_points)
+    );
 }
 
 
@@ -141,7 +143,7 @@ void RieszolveOptimizer::randomize_points(unsigned int seed) noexcept {
     compute_energy_and_forces();
     prev_force_norm_squared = force_norm_squared;
     last_step_size = 0.0;
-    last_step_length = 0.0;
+    last_step_length_squared = 0.0;
     num_iterations = 0;
     copy_triple_subarray(prev_forces_x(), forces_x());
     copy_triple_subarray(step_x(), forces_x());
@@ -174,20 +176,20 @@ bool RieszolveOptimizer::quadratic_line_search_helper(
     const double numerator = (delta_0 + delta_0) + delta_sum;
     const double denominator = delta_sum + delta_sum;
     const double xq = x1 * (numerator / denominator);
-    const double lq = std::sqrt(move_temp_points(xq));
+    const double lq = move_temp_points(xq);
     const double fq = compute_coulomb_energy(
         temp_points_x(), temp_points_y(), temp_points_z(), num_points
     );
     if (fq <= f1) { // return (xq, fq)
         last_step_size = xq;
-        last_step_length = lq;
+        last_step_length_squared = lq;
         energy = fq;
         copy_triple_subarray(points_x(), temp_points_x());
         ++num_iterations;
         return true;
     } else if (f1 < f0) { // return (x1, f1)
         last_step_size = x1;
-        last_step_length = l1;
+        last_step_length_squared = l1;
         energy = f1;
         move_points(
             points_x(),
@@ -211,10 +213,10 @@ bool RieszolveOptimizer::quadratic_line_search() noexcept {
     const double f0 = energy;
     double initial_step_size =
         (last_step_size > 0.0) ? last_step_size : DBL_EPSILON;
-    double initial_step_length = std::sqrt(move_temp_points(initial_step_size));
-    while (initial_step_length == 0.0) {
+    double initial_step_length_squared = move_temp_points(initial_step_size);
+    while (initial_step_length_squared == 0.0) {
         initial_step_size += initial_step_size;
-        initial_step_length = std::sqrt(move_temp_points(initial_step_size));
+        initial_step_length_squared = move_temp_points(initial_step_size);
     }
     const double initial_step_energy = compute_coulomb_energy(
         temp_points_x(), temp_points_y(), temp_points_z(), num_points
@@ -223,16 +225,16 @@ bool RieszolveOptimizer::quadratic_line_search() noexcept {
         return false;
     } else if (initial_step_energy <= f0) { // increase step size
         const double x1 = initial_step_size;
-        const double l1 = initial_step_length;
+        const double l1 = initial_step_length_squared;
         const double f1 = initial_step_energy;
         const double x2 = x1 + x1;
-        const double l2 = std::sqrt(move_temp_points(x2));
+        const double l2 = move_temp_points(x2);
         const double f2 = compute_coulomb_energy(
             temp_points_x(), temp_points_y(), temp_points_z(), num_points
         );
         if (!std::isfinite(f2)) { // return (x1, f1)
             last_step_size = x1;
-            last_step_length = l1;
+            last_step_length_squared = l1;
             energy = f1;
             move_points(
                 points_x(),
@@ -250,7 +252,7 @@ bool RieszolveOptimizer::quadratic_line_search() noexcept {
             return quadratic_line_search_helper(x1, l1, f0, f1, f2);
         } else { // return (x2, f2)
             last_step_size = x2;
-            last_step_length = l2;
+            last_step_length_squared = l2;
             energy = f2;
             copy_triple_subarray(points_x(), temp_points_x());
             ++num_iterations;
@@ -258,11 +260,11 @@ bool RieszolveOptimizer::quadratic_line_search() noexcept {
         }
     } else { // decrease step size
         double x2 = initial_step_size;
-        double l2 = initial_step_length;
+        double l2 = initial_step_length_squared;
         double f2 = initial_step_energy;
         while (true) {
             const double x1 = 0.5 * x2;
-            const double l1 = std::sqrt(move_temp_points(x1));
+            const double l1 = move_temp_points(x1);
             if (!(l1 < l2)) { // return (0, f0)
                 return false;
             }

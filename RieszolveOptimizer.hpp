@@ -12,7 +12,7 @@ class RieszolveOptimizer {
     double force_norm_squared;
     double prev_force_norm_squared;
     double last_step_size;
-    double last_step_length;
+    double last_step_length_squared;
     int num_points;
     int num_chunks;
     int num_iterations;
@@ -70,7 +70,7 @@ public:
     double get_rms_force() const noexcept;
     double get_last_step_size() const noexcept;
     int get_num_iterations() const noexcept;
-    double get_last_step_length() const noexcept;
+    double get_rms_step_length() const noexcept;
 
 
     void randomize_points(unsigned int seed) noexcept;

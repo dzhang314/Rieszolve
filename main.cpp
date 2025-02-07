@@ -549,29 +549,29 @@ SDL_AppResult SDL_AppIterate(void *) {
     std::snprintf(
         debug_message_buffer,
         sizeof(debug_message_buffer),
-        "Coulomb energy: %.15e",
+        "Coulomb energy:  %.15e",
         optimizer->get_energy()
     );
     SDL_RenderDebugText(renderer, 0.0f, 60.0f, debug_message_buffer);
     std::snprintf(
         debug_message_buffer,
         sizeof(debug_message_buffer),
-        "RMS force:      %.15e",
+        "RMS force:       %.15e",
         rms_force
     );
     SDL_RenderDebugText(renderer, 0.0f, 70.0f, debug_message_buffer);
     std::snprintf(
         debug_message_buffer,
         sizeof(debug_message_buffer),
-        "Step size:      %.15e",
+        "Step size:       %.15e",
         optimizer->get_last_step_size()
     );
     SDL_RenderDebugText(renderer, 0.0f, 80.0f, debug_message_buffer);
     std::snprintf(
         debug_message_buffer,
         sizeof(debug_message_buffer),
-        "Step length:    %.15e",
-        optimizer->get_last_step_length()
+        "RMS step length: %.15e",
+        optimizer->get_rms_step_length()
     );
     SDL_RenderDebugText(renderer, 0.0f, 90.0f, debug_message_buffer);
 
