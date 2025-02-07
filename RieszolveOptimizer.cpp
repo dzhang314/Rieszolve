@@ -301,13 +301,11 @@ bool RieszolveOptimizer::conjugate_gradient_step() noexcept {
         num_points
     );
     if (force_norm_squared > overlap) {
-        const double beta =
-            (force_norm_squared - overlap) / prev_force_norm_squared;
         xpay(
             step_x(),
             step_y(),
             step_z(),
-            beta,
+            (force_norm_squared - overlap) / prev_force_norm_squared,
             forces_x(),
             forces_y(),
             forces_z(),

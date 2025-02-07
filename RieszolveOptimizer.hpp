@@ -18,26 +18,26 @@ class RieszolveOptimizer {
     int num_iterations;
 
 
-    constexpr double *subarray(int index) const noexcept {
+    double *subarray(int index) const noexcept {
         return data + index * CHUNK_SIZE * num_chunks;
     }
 
 
-    constexpr double *points_x() const noexcept { return subarray(0); }
-    constexpr double *points_y() const noexcept { return subarray(1); }
-    constexpr double *points_z() const noexcept { return subarray(2); }
-    constexpr double *forces_x() const noexcept { return subarray(3); }
-    constexpr double *forces_y() const noexcept { return subarray(4); }
-    constexpr double *forces_z() const noexcept { return subarray(5); }
-    constexpr double *temp_points_x() const noexcept { return subarray(6); }
-    constexpr double *temp_points_y() const noexcept { return subarray(7); }
-    constexpr double *temp_points_z() const noexcept { return subarray(8); }
-    constexpr double *prev_forces_x() const noexcept { return subarray(9); }
-    constexpr double *prev_forces_y() const noexcept { return subarray(10); }
-    constexpr double *prev_forces_z() const noexcept { return subarray(11); }
-    constexpr double *step_x() const noexcept { return subarray(12); }
-    constexpr double *step_y() const noexcept { return subarray(13); }
-    constexpr double *step_z() const noexcept { return subarray(14); }
+    double *points_x() const noexcept { return subarray(0); }
+    double *points_y() const noexcept { return subarray(1); }
+    double *points_z() const noexcept { return subarray(2); }
+    double *forces_x() const noexcept { return subarray(3); }
+    double *forces_y() const noexcept { return subarray(4); }
+    double *forces_z() const noexcept { return subarray(5); }
+    double *temp_points_x() const noexcept { return subarray(6); }
+    double *temp_points_y() const noexcept { return subarray(7); }
+    double *temp_points_z() const noexcept { return subarray(8); }
+    double *prev_forces_x() const noexcept { return subarray(9); }
+    double *prev_forces_y() const noexcept { return subarray(10); }
+    double *prev_forces_z() const noexcept { return subarray(11); }
+    double *step_x() const noexcept { return subarray(12); }
+    double *step_y() const noexcept { return subarray(13); }
+    double *step_z() const noexcept { return subarray(14); }
 
 
     void copy_subarray(
