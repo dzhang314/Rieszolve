@@ -1,3 +1,6 @@
+#pragma once
+
+
 #include <SDL3/SDL_pixels.h> // for SDL_FColor
 #include <SDL3/SDL_render.h> // for SDL_Vertex
 
