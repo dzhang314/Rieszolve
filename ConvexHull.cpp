@@ -1,7 +1,6 @@
 #include "ConvexHull.hpp"
 
 #include <algorithm>
-#include <cassert>
 #include <cmath>
 #include <tuple>
 #include <vector>
@@ -21,17 +20,17 @@ struct FaceIndices3D {
 };
 
 
-static inline Vector3D operator-(const Vector3D &v, const Vector3D &w) {
+constexpr Vector3D operator-(const Vector3D &v, const Vector3D &w) {
     return Vector3D{v.x - w.x, v.y - w.y, v.z - w.z};
 }
 
 
-static inline double dot(const Vector3D &v, const Vector3D &w) {
+constexpr double dot(const Vector3D &v, const Vector3D &w) {
     return v.x * w.x + v.y * w.y + v.z * w.z;
 }
 
 
-static inline Vector3D cross(const Vector3D &v, const Vector3D &w) {
+constexpr Vector3D cross(const Vector3D &v, const Vector3D &w) {
     return Vector3D{
         v.y * w.z - v.z * w.y, v.z * w.x - v.x * w.z, v.x * w.y - v.y * w.x
     };
@@ -75,10 +74,13 @@ static inline void find_initial_tetrahedron(
     double c_best = points_y[0] - points_z[0] - points_x[0];
     double d_best = points_z[0] - points_x[0] - points_y[0];
     for (int i = 1; i < num_points; ++i) {
-        const double a_score = points_x[i] + points_y[i] + points_z[i];
-        const double b_score = points_x[i] - points_y[i] - points_z[i];
-        const double c_score = points_y[i] - points_z[i] - points_x[i];
-        const double d_score = points_z[i] - points_x[i] - points_y[i];
+        const double x = points_x[i];
+        const double y = points_y[i];
+        const double z = points_z[i];
+        const double a_score = x + y + z;
+        const double b_score = x - y - z;
+        const double c_score = y - z - x;
+        const double d_score = z - x - y;
         if (a_score > a_best) {
             a_index = i;
             a_best = a_score;
@@ -119,7 +121,6 @@ static void recursive_triangulate(
     const int b_index = face_indices.j;
     const int c_index = face_indices.k;
 
-    assert(point_indices.size() >= 3);
     if (point_indices.size() == 3) {
         faces.push_back(face_indices);
         return;
@@ -157,16 +158,23 @@ static void recursive_triangulate(
     std::vector<int> caf_points;
     for (int i : point_indices) {
         const Vector3D p{points_x[i], points_y[i], points_z[i]};
-        const bool in_fab = (i == f_index) | (i == a_index) | (i == b_index) |
+        const bool is_f = (i == f_index);
+        const bool in_fab = is_f | (i == a_index) | (i == b_index) |
                             ((dot(p, fa) >= 0.0) && (dot(p, fb) <= 0.0));
-        const bool in_fbc = (i == f_index) | (i == b_index) | (i == c_index) |
+        const bool in_fbc = is_f | (i == b_index) | (i == c_index) |
                             ((dot(p, fb) >= 0.0) && (dot(p, fc) <= 0.0));
-        const bool in_fca = (i == f_index) | (i == c_index) | (i == a_index) |
+        const bool in_fca = is_f | (i == c_index) | (i == a_index) |
                             ((dot(p, fc) >= 0.0) && (dot(p, fa) <= 0.0));
+        int count = in_fab + in_fbc + in_fca;
+        const bool is_initial_vertex =
+            ((i == a_index) | (i == b_index) | (i == c_index));
+        const bool valid = ((count == 3) & is_f) |
+                           ((count == 2) & (!is_f) & is_initial_vertex) |
+                           ((count == 1) & (!is_f) & (!is_initial_vertex));
+        if (!valid) { return; }
         if (in_fab) { abf_points.push_back(i); }
         if (in_fbc) { bcf_points.push_back(i); }
         if (in_fca) { caf_points.push_back(i); }
-        // assert(in_fab | in_fbc | in_fca);
     }
 
     recursive_triangulate(
@@ -239,11 +247,21 @@ void triangulate(
         const bool in_bdc =
             (i == b_index) | (i == d_index) | (i == c_index) |
             ((dot(p, bd) >= 0.0) && (dot(p, cd) <= 0.0) && (dot(p, bc) <= 0.0));
+        const int count = in_abc + in_acd + in_adb + in_bdc;
+        const bool is_initial_vertex =
+            (i == a_index) | (i == b_index) | (i == c_index) | (i == d_index);
+        const bool valid = ((count == 3) & is_initial_vertex) |
+                           ((count == 1) & !is_initial_vertex);
+        if (!valid) {
+            for (int j = 0; j < 3 * num_faces; ++j) {
+                faces[j] = INVALID_INDEX;
+            }
+            return;
+        }
         if (in_abc) { abc_points.push_back(i); }
         if (in_acd) { acd_points.push_back(i); }
         if (in_adb) { adb_points.push_back(i); }
         if (in_bdc) { bdc_points.push_back(i); }
-        // assert(in_abc | in_acd | in_adb | in_bdc);
     }
 
     std::vector<FaceIndices3D> result;
