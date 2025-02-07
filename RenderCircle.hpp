@@ -10,7 +10,7 @@ constexpr int NUM_CIRCLE_VERTICES = 36;
 
 static inline void construct_circle_vertices(
     SDL_Vertex *vertices, float x, float y, float radius, SDL_FColor color
-) {
+) noexcept {
     const float major = 0.866025404f * radius;
     const float minor = 0.5f * radius;
 

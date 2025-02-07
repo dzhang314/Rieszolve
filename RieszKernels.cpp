@@ -5,7 +5,7 @@ using std::fma;
 using std::sqrt;
 
 
-static inline void two_sum(double &s, double &e, double x, double y) {
+static inline void two_sum(double &s, double &e, double x, double y) noexcept {
     s = x + y;
     const double x_eff = s - y;
     const double y_eff = s - x_eff;
@@ -15,7 +15,7 @@ static inline void two_sum(double &s, double &e, double x, double y) {
 }
 
 
-static inline void two_sum(double &s, double &e) {
+static inline void two_sum(double &s, double &e) noexcept {
     const double x = s;
     const double y = e;
     two_sum(s, e, x, y);
@@ -57,7 +57,7 @@ double compute_coulomb_energy(
     const double *__restrict__ points_y,
     const double *__restrict__ points_z,
     int num_points
-) {
+) noexcept {
     HighPrecisionAccumulator energy;
 #ifdef _OPENMP
 #pragma omp parallel for schedule(static) reduction(+ : energy)
@@ -90,7 +90,7 @@ double compute_coulomb_forces(
     const double *__restrict__ points_y,
     const double *__restrict__ points_z,
     int num_points
-) {
+) noexcept {
     HighPrecisionAccumulator energy;
 #ifdef _OPENMP
 #pragma omp parallel for schedule(static) reduction(+ : energy)
@@ -133,7 +133,7 @@ double constrain_forces(
     const double *__restrict__ points_y,
     const double *__restrict__ points_z,
     int num_points
-) {
+) noexcept {
     HighPrecisionAccumulator force_norm_squared;
 #ifdef _OPENMP
 #pragma omp parallel for schedule(static) reduction(+ : force_norm_squared)
@@ -169,7 +169,7 @@ double move_points(
     const double *__restrict__ step_z,
     double step_size,
     int num_points
-) {
+) noexcept {
     HighPrecisionAccumulator distance_squared;
 #ifdef _OPENMP
 #pragma omp parallel for schedule(static) reduction(+ : distance_squared)
@@ -213,7 +213,7 @@ double move_points(
     const double *__restrict__ step_z,
     double step_size,
     int num_points
-) {
+) noexcept {
     HighPrecisionAccumulator distance_squared;
 #ifdef _OPENMP
 #pragma omp parallel for schedule(static) reduction(+ : distance_squared)
@@ -253,7 +253,7 @@ double dot_product(
     const double *__restrict__ wy,
     const double *__restrict__ wz,
     int num_points
-) {
+) noexcept {
     HighPrecisionAccumulator result;
     for (int i = 0; i < num_points; ++i) { result.add(vx[i] * wx[i]); }
     for (int i = 0; i < num_points; ++i) { result.add(vy[i] * wy[i]); }
@@ -271,7 +271,7 @@ void xpay(
     const double *__restrict__ wy,
     const double *__restrict__ wz,
     int num_points
-) {
+) noexcept {
 #ifdef _OPENMP
 #pragma omp simd simdlen(8) aligned(vx, wx : 64)
 #endif // _OPENMP

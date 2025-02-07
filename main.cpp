@@ -45,7 +45,6 @@ namespace GlobalVariables {
 constexpr int INITIAL_WINDOW_WIDTH = 1920;
 constexpr int INITIAL_WINDOW_HEIGHT = 1080;
 constexpr int MAX_NUM_POINTS = 99999;
-constexpr int MAX_NUM_FACES = 2 * MAX_NUM_POINTS - 4;
 
 static int num_points = 0;
 static int num_faces = 0;
@@ -73,7 +72,7 @@ static double *renderer_points_z = nullptr;
 static double *renderer_forces_x = nullptr;
 static double *renderer_forces_y = nullptr;
 static double *renderer_forces_z = nullptr;
-static int *renderer_faces = nullptr;
+static TriangleMesh *renderer_mesh = nullptr;
 static int *renderer_neighbors = nullptr;
 static float *screen_points = nullptr;
 static float *screen_forces = nullptr;
@@ -249,20 +248,19 @@ SDL_AppResult SDL_AppInit(void **, int argc, char **argv) {
         return SDL_APP_FAILURE;
     }
 
-    ALLOCATE_ALIGNED_MEMORY(renderer_points_x, double, MAX_NUM_POINTS);
-    ALLOCATE_ALIGNED_MEMORY(renderer_points_y, double, MAX_NUM_POINTS);
-    ALLOCATE_ALIGNED_MEMORY(renderer_points_z, double, MAX_NUM_POINTS);
-    ALLOCATE_ALIGNED_MEMORY(renderer_forces_x, double, MAX_NUM_POINTS);
-    ALLOCATE_ALIGNED_MEMORY(renderer_forces_y, double, MAX_NUM_POINTS);
-    ALLOCATE_ALIGNED_MEMORY(renderer_forces_z, double, MAX_NUM_POINTS);
+    ALLOCATE_ALIGNED_MEMORY(renderer_points_x, double, num_points);
+    ALLOCATE_ALIGNED_MEMORY(renderer_points_y, double, num_points);
+    ALLOCATE_ALIGNED_MEMORY(renderer_points_z, double, num_points);
+    ALLOCATE_ALIGNED_MEMORY(renderer_forces_x, double, num_points);
+    ALLOCATE_ALIGNED_MEMORY(renderer_forces_y, double, num_points);
+    ALLOCATE_ALIGNED_MEMORY(renderer_forces_z, double, num_points);
 
-    ALLOCATE_MEMORY(renderer_faces, int, 3 * MAX_NUM_FACES);
-    ALLOCATE_MEMORY(renderer_neighbors, int, MAX_NUM_POINTS);
-    ALLOCATE_MEMORY(screen_points, float, 3 * MAX_NUM_POINTS);
-    ALLOCATE_MEMORY(screen_forces, float, 2 * MAX_NUM_POINTS);
-    ALLOCATE_MEMORY(renderer_colors, SDL_FColor, MAX_NUM_POINTS);
+    ALLOCATE_MEMORY(renderer_neighbors, int, num_points);
+    ALLOCATE_MEMORY(screen_points, float, 3 * num_points);
+    ALLOCATE_MEMORY(screen_forces, float, 2 * num_points);
+    ALLOCATE_MEMORY(renderer_colors, SDL_FColor, num_points);
     ALLOCATE_MEMORY(
-        renderer_vertices, SDL_Vertex, NUM_CIRCLE_VERTICES * MAX_NUM_POINTS
+        renderer_vertices, SDL_Vertex, NUM_CIRCLE_VERTICES * num_points
     );
 
     optimizer = new (std::nothrow) RieszolveOptimizer(num_points);
@@ -275,6 +273,23 @@ SDL_AppResult SDL_AppInit(void **, int argc, char **argv) {
 
     const unsigned int seed = static_cast<unsigned int>(time(nullptr));
     optimizer->randomize_points(seed);
+    optimizer->copy_points(
+        renderer_points_x, renderer_points_y, renderer_points_z
+    );
+    optimizer->copy_forces(
+        renderer_forces_x, renderer_forces_y, renderer_forces_z
+    );
+
+    renderer_mesh = new (std::nothrow) TriangleMesh(
+        renderer_points_x, renderer_points_y, renderer_points_z, num_points
+    );
+    if ((!renderer_mesh) || (!renderer_mesh->is_allocated())) {
+        SDL_LogCritical(
+            SDL_LOG_CATEGORY_ERROR, "Failed to allocate memory for mesh.\n"
+        );
+        return SDL_APP_FAILURE;
+    }
+
     randomize_colors();
 
     optimizer_thread =
@@ -405,19 +420,18 @@ SDL_AppResult SDL_AppIterate(void *) {
     SDL_SetRenderScale(renderer, base_scale, base_scale);
 
     if (render_neighbors) {
-        convex_hull(
-            renderer_faces,
-            renderer_points_x,
-            renderer_points_y,
-            renderer_points_z,
-            num_points
+        SDL_LockRWLockForReading(renderer_lock);
+        renderer_mesh->flip_edges(
+            renderer_points_x, renderer_points_y, renderer_points_z
         );
+        SDL_UnlockRWLock(renderer_lock);
         SDL_SetRenderDrawColor(renderer, 128, 128, 128, SDL_ALPHA_OPAQUE);
         for (int i = 0; i < num_points; ++i) { renderer_neighbors[i] = 0; }
         for (int i = 0; i < num_faces; ++i) {
-            const int a_index = renderer_faces[3 * i + 0];
-            const int b_index = renderer_faces[3 * i + 1];
-            const int c_index = renderer_faces[3 * i + 2];
+            const Triangle face = renderer_mesh->get_face(i);
+            const int a_index = face.a.vertex_index;
+            const int b_index = face.b.vertex_index;
+            const int c_index = face.c.vertex_index;
             if ((a_index >= 0) & (b_index >= 0) & (c_index >= 0)) {
                 ++renderer_neighbors[a_index];
                 ++renderer_neighbors[b_index];
@@ -590,7 +604,7 @@ void SDL_AppQuit(void *, SDL_AppResult) {
     FREE_MEMORY(screen_forces);
     FREE_MEMORY(screen_points);
     FREE_MEMORY(renderer_neighbors);
-    FREE_MEMORY(renderer_faces);
+    delete renderer_mesh;
     FREE_ALIGNED_MEMORY(renderer_forces_z);
     FREE_ALIGNED_MEMORY(renderer_forces_y);
     FREE_ALIGNED_MEMORY(renderer_forces_x);

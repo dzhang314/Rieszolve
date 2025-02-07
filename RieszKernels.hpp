@@ -6,7 +6,7 @@ double compute_coulomb_energy(
     const double *__restrict__ points_y,
     const double *__restrict__ points_z,
     int num_points
-);
+) noexcept;
 
 
 double compute_coulomb_forces(
@@ -17,7 +17,7 @@ double compute_coulomb_forces(
     const double *__restrict__ points_y,
     const double *__restrict__ points_z,
     int num_points
-);
+) noexcept;
 
 
 double constrain_forces(
@@ -28,7 +28,7 @@ double constrain_forces(
     const double *__restrict__ points_y,
     const double *__restrict__ points_z,
     int num_points
-);
+) noexcept;
 
 
 double move_points(
@@ -40,7 +40,7 @@ double move_points(
     const double *__restrict__ step_z,
     double step_size,
     int num_points
-);
+) noexcept;
 
 
 double move_points(
@@ -55,7 +55,7 @@ double move_points(
     const double *__restrict__ step_z,
     double step_size,
     int num_points
-);
+) noexcept;
 
 
 double dot_product(
@@ -66,7 +66,7 @@ double dot_product(
     const double *__restrict__ wy,
     const double *__restrict__ wz,
     int num_points
-);
+) noexcept;
 
 
 void xpay(
@@ -78,4 +78,4 @@ void xpay(
     const double *__restrict__ wy,
     const double *__restrict__ wz,
     int num_points
-);
+) noexcept;

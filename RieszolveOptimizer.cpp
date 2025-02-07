@@ -111,7 +111,7 @@ void RieszolveOptimizer::compute_energy_and_forces() noexcept {
 }
 
 
-static inline float rand_float() {
+static inline float rand_float() noexcept {
     return static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX);
 }
 

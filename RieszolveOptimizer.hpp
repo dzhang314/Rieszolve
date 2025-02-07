@@ -3,9 +3,7 @@
 
 class RieszolveOptimizer {
 
-
     static constexpr int CHUNK_SIZE = 8;
-
 
     double *data;
     double energy;
@@ -17,11 +15,9 @@ class RieszolveOptimizer {
     int num_chunks;
     int num_iterations;
 
-
     double *subarray(int index) const noexcept {
         return data + index * CHUNK_SIZE * num_chunks;
     }
-
 
     double *points_x() const noexcept { return subarray(0); }
     double *points_y() const noexcept { return subarray(1); }
@@ -39,14 +35,12 @@ class RieszolveOptimizer {
     double *step_y() const noexcept { return subarray(13); }
     double *step_z() const noexcept { return subarray(14); }
 
-
     void copy_subarray(
         double *__restrict__ dst, const double *__restrict__ src
     ) noexcept;
     void copy_triple_subarray(
         double *__restrict__ dst, const double *__restrict__ src
     ) noexcept;
-
 
     void compute_energy_and_forces() noexcept;
     double move_temp_points(double step_size) noexcept;
@@ -55,9 +49,7 @@ class RieszolveOptimizer {
     ) noexcept;
     bool quadratic_line_search() noexcept;
 
-
 public:
-
 
     explicit RieszolveOptimizer(int num_points) noexcept;
     RieszolveOptimizer(const RieszolveOptimizer &) = delete;
@@ -65,18 +57,15 @@ public:
     ~RieszolveOptimizer() noexcept;
     bool is_allocated() const noexcept;
 
-
     double get_energy() const noexcept;
     double get_rms_force() const noexcept;
     double get_last_step_size() const noexcept;
     int get_num_iterations() const noexcept;
     double get_rms_step_length() const noexcept;
 
-
     void randomize_points(unsigned int seed) noexcept;
     bool gradient_descent_step() noexcept;
     bool conjugate_gradient_step() noexcept;
-
 
     void copy_points(
         double *__restrict__ points_x,
@@ -88,6 +77,5 @@ public:
         double *__restrict__ forces_y,
         double *__restrict__ forces_z
     ) noexcept;
-
 
 }; // class RieszolveOptimizer
