@@ -320,17 +320,22 @@ bool RieszolveOptimizer::conjugate_gradient_step() noexcept {
 }
 
 
-void RieszolveOptimizer::output_data(
+void RieszolveOptimizer::copy_points(
     double *__restrict__ points_x_arg,
     double *__restrict__ points_y_arg,
-    double *__restrict__ points_z_arg,
-    double *__restrict__ forces_x_arg,
-    double *__restrict__ forces_y_arg,
-    double *__restrict__ forces_z_arg
+    double *__restrict__ points_z_arg
 ) noexcept {
     copy_subarray(points_x_arg, points_x());
     copy_subarray(points_y_arg, points_y());
     copy_subarray(points_z_arg, points_z());
+}
+
+
+void RieszolveOptimizer::copy_forces(
+    double *__restrict__ forces_x_arg,
+    double *__restrict__ forces_y_arg,
+    double *__restrict__ forces_z_arg
+) noexcept {
     copy_subarray(forces_x_arg, forces_x());
     copy_subarray(forces_y_arg, forces_y());
     copy_subarray(forces_z_arg, forces_z());

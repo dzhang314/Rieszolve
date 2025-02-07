@@ -78,10 +78,12 @@ public:
     bool conjugate_gradient_step() noexcept;
 
 
-    void output_data(
+    void copy_points(
         double *__restrict__ points_x,
         double *__restrict__ points_y,
-        double *__restrict__ points_z,
+        double *__restrict__ points_z
+    ) noexcept;
+    void copy_forces(
         double *__restrict__ forces_x,
         double *__restrict__ forces_y,
         double *__restrict__ forces_z

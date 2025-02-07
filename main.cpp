@@ -106,13 +106,11 @@ static inline int SDLCALL run_optimizer(void *) {
         }
         if (success) {
             SDL_LockRWLockForWriting(renderer_lock);
-            optimizer->output_data(
-                renderer_points_x,
-                renderer_points_y,
-                renderer_points_z,
-                renderer_forces_x,
-                renderer_forces_y,
-                renderer_forces_z
+            optimizer->copy_points(
+                renderer_points_x, renderer_points_y, renderer_points_z
+            );
+            optimizer->copy_forces(
+                renderer_forces_x, renderer_forces_y, renderer_forces_z
             );
             SDL_UnlockRWLock(renderer_lock);
         }
