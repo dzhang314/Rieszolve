@@ -429,9 +429,9 @@ SDL_AppResult SDL_AppIterate(void *) {
         for (int i = 0; i < num_points; ++i) { renderer_neighbors[i] = 0; }
         for (int i = 0; i < num_faces; ++i) {
             const Triangle face = renderer_mesh->get_face(i);
-            const int a_index = face.a.vertex_index;
-            const int b_index = face.b.vertex_index;
-            const int c_index = face.c.vertex_index;
+            const int a_index = face.ab.vertex_index;
+            const int b_index = face.bc.vertex_index;
+            const int c_index = face.ca.vertex_index;
             if ((a_index >= 0) & (b_index >= 0) & (c_index >= 0)) {
                 ++renderer_neighbors[a_index];
                 ++renderer_neighbors[b_index];

@@ -110,9 +110,9 @@ static inline void recursive_triangulate(
     const std::vector<int> &point_indices,
     const Triangle &triangle
 ) {
-    const int a_index = triangle.a.vertex_index;
-    const int b_index = triangle.b.vertex_index;
-    const int c_index = triangle.c.vertex_index;
+    const int a_index = triangle.ab.vertex_index;
+    const int b_index = triangle.bc.vertex_index;
+    const int c_index = triangle.ca.vertex_index;
 
     if (point_indices.size() == 3) {
         faces.push_back(triangle);
@@ -261,13 +261,15 @@ static inline std::vector<Triangle> triangulate(
 }
 
 
-static inline HalfEdge &
+static inline HalfEdge *
 get_half_edge(Triangle *faces, int edge_index) noexcept {
-    Triangle &face = faces[edge_index / 3];
+    assert(faces);
+    assert(edge_index >= 0);
+    // return reinterpret_cast<HalfEdge *>(faces) + edge_index;
     switch (edge_index % 3) {
-        case 0: return face.a;
-        case 1: return face.b;
-        case 2: return face.c;
+        case 0: return &faces[edge_index / 3].ab;
+        case 1: return &faces[edge_index / 3].bc;
+        case 2: return &faces[edge_index / 3].ca;
     }
     assert(false);
 }
@@ -277,47 +279,51 @@ static inline bool compute_twins(Triangle *faces, int num_faces) {
     std::map<std::pair<int, int>, int> unmatched_edges;
     for (int i = 0; i < num_faces; ++i) {
         const Triangle face = faces[i];
-        const int a_index = face.a.vertex_index;
-        const int b_index = face.b.vertex_index;
-        const int c_index = face.c.vertex_index;
-        const std::pair<int, int> ab{a_index, b_index};
-        const std::pair<int, int> bc{b_index, c_index};
-        const std::pair<int, int> ca{c_index, a_index};
+        const int a_index = face.ab.vertex_index;
+        const int b_index = face.bc.vertex_index;
+        const int c_index = face.ca.vertex_index;
         const int ab_index = 3 * i + 0;
-        const int bc_index = 3 * i + 1;
-        const int ca_index = 3 * i + 2;
-        const auto find_ab = unmatched_edges.find(ab);
+        assert(get_half_edge(faces, ab_index)->vertex_index == a_index);
+        assert(get_half_edge(faces, ab_index)->twin_index == INVALID_INDEX);
+        const auto find_ab =
+            unmatched_edges.find(std::make_pair(a_index, b_index));
         if (find_ab != unmatched_edges.end()) {
-            const int twin_index = find_ab->second;
-            HalfEdge &twin = get_half_edge(faces, twin_index);
-            faces[i].a.twin_index = twin_index;
-            twin.twin_index = ab_index;
+            const int ba_index = find_ab->second;
+            get_half_edge(faces, ab_index)->twin_index = ba_index;
+            get_half_edge(faces, ba_index)->twin_index = ab_index;
             unmatched_edges.erase(find_ab);
         } else {
             unmatched_edges[std::make_pair(b_index, a_index)] = ab_index;
         }
-        const auto find_bc = unmatched_edges.find(bc);
+        const int bc_index = 3 * i + 1;
+        assert(get_half_edge(faces, bc_index)->vertex_index == b_index);
+        assert(get_half_edge(faces, bc_index)->twin_index == INVALID_INDEX);
+        const auto find_bc =
+            unmatched_edges.find(std::make_pair(b_index, c_index));
         if (find_bc != unmatched_edges.end()) {
-            const int twin_index = find_bc->second;
-            HalfEdge &twin = get_half_edge(faces, twin_index);
-            faces[i].b.twin_index = twin_index;
-            twin.twin_index = bc_index;
+            const int cb_index = find_bc->second;
+            get_half_edge(faces, bc_index)->twin_index = cb_index;
+            get_half_edge(faces, cb_index)->twin_index = bc_index;
             unmatched_edges.erase(find_bc);
         } else {
             unmatched_edges[std::make_pair(c_index, b_index)] = bc_index;
         }
-        const auto find_ca = unmatched_edges.find(ca);
+        const int ca_index = 3 * i + 2;
+        assert(get_half_edge(faces, ca_index)->vertex_index == c_index);
+        assert(get_half_edge(faces, ca_index)->twin_index == INVALID_INDEX);
+        const auto find_ca =
+            unmatched_edges.find(std::make_pair(c_index, a_index));
         if (find_ca != unmatched_edges.end()) {
-            const int twin_index = find_ca->second;
-            HalfEdge &twin = get_half_edge(faces, twin_index);
-            faces[i].c.twin_index = twin_index;
-            twin.twin_index = ca_index;
+            const int ac_index = find_ca->second;
+            get_half_edge(faces, ca_index)->twin_index = ac_index;
+            get_half_edge(faces, ac_index)->twin_index = ca_index;
             unmatched_edges.erase(find_ca);
         } else {
             unmatched_edges[std::make_pair(a_index, c_index)] = ca_index;
         }
     }
-    return unmatched_edges.empty();
+    assert(unmatched_edges.empty());
+    for (int i = 0; i <) return unmatched_edges.empty();
 }
 
 
@@ -329,15 +335,18 @@ TriangleMesh::TriangleMesh(
 ) {
     num_faces = 2 * num_vertices - 4;
     faces = new (std::nothrow) Triangle[num_faces];
+    assert(faces);
     if (faces) {
         const std::vector<Triangle> triangles =
             triangulate(vertices_x, vertices_y, vertices_z, num_vertices);
+        assert(triangles.size() == static_cast<std::size_t>(num_faces));
         if (triangles.size() == static_cast<std::size_t>(num_faces)) {
-            std::copy(triangles.begin(), triangles.end(), faces);
+            for (int i = 0; i < num_faces; ++i) { faces[i] = triangles[i]; }
             const bool success = compute_twins(faces, num_faces);
             assert(success);
         }
     }
+    assert(is_allocated());
 }
 
 
@@ -351,12 +360,88 @@ bool TriangleMesh::is_allocated() const noexcept {
 }
 
 
+int next_half_edge_index(int edge_index) noexcept {
+    assert(edge_index >= 0);
+    const int face_index = edge_index / 3;
+    switch (edge_index % 3) {
+        case 0: return 3 * face_index + 1;
+        case 1: return 3 * face_index + 2;
+        case 2: return 3 * face_index + 0;
+    }
+    assert(false);
+}
+
+
 bool TriangleMesh::flip_edges(
-    const double *__restrict__ vertices_x,
-    const double *__restrict__ vertices_y,
-    const double *__restrict__ vertices_z
+    const double *__restrict__ x,
+    const double *__restrict__ y,
+    const double *__restrict__ z
 ) noexcept {
-    return false;
+
+    assert(is_allocated());
+    for (int i = 0; i < num_faces; ++i) {
+
+        const int ab_index = 3 * i + 0;
+        const int bc_index = 3 * i + 1;
+        const int ca_index = 3 * i + 2;
+        HalfEdge *ab = get_half_edge(faces, ab_index);
+        HalfEdge *bc = get_half_edge(faces, bc_index);
+        HalfEdge *ca = get_half_edge(faces, ca_index);
+        assert(ab->vertex_index >= 0);
+        assert(ab->twin_index >= 0);
+        assert(bc->vertex_index >= 0);
+        assert(bc->twin_index >= 0);
+        assert(ca->vertex_index >= 0);
+        assert(ca->twin_index >= 0);
+        const int a_index = ab->vertex_index;
+        const int b_index = bc->vertex_index;
+        const int c_index = ca->vertex_index;
+        assert(a_index >= 0);
+        assert(b_index >= 0);
+        assert(c_index >= 0);
+
+        const int ba_index = ab->twin_index;
+        const int ad_index = next_half_edge_index(ba_index);
+        const int db_index = next_half_edge_index(ad_index);
+        assert(ba_index >= 0);
+        assert(ad_index >= 0);
+        assert(db_index >= 0);
+        HalfEdge *ba = get_half_edge(faces, ba_index);
+        HalfEdge *ad = get_half_edge(faces, ad_index);
+        HalfEdge *db = get_half_edge(faces, db_index);
+        assert(ba->vertex_index >= 0);
+        assert(ba->twin_index >= 0);
+        assert(ad->vertex_index >= 0);
+        assert(ad->twin_index >= 0);
+        assert(db->vertex_index >= 0);
+        assert(db->twin_index >= 0);
+        assert(ba->vertex_index == b_index);
+        assert(ad->vertex_index == a_index);
+        assert(ba->twin_index == ab_index);
+
+        const int d_index = db->vertex_index;
+        assert(d_index >= 0);
+
+        const Vector3D a{x[a_index], y[a_index], z[a_index]};
+        const Vector3D b{x[b_index], y[b_index], z[b_index]};
+        const Vector3D c{x[c_index], y[c_index], z[c_index]};
+        const Vector3D d{x[d_index], y[d_index], z[d_index]};
+
+        // if ((c - d) * (c - d) < (a - b) * (a - b)) {
+        //     const int ad_twin_index = ad.twin_index;
+        //     const int bc_twin_index = bc.twin_index;
+        //     // ab becomes ad
+        //     ab.twin_index = ad_twin_index;
+        //     // bc becomes dc
+        //     bc.vertex_index = d_index;
+        //     bc.twin_index = ad_index;
+        //     // ba becomes bc
+        //     ba.twin_index = bc_twin_index;
+        //     // ad becomes cd
+        //     ad.vertex_index = c_index;
+        //     ad.twin_index = bc_index;
+        // }
+    }
 }
 
 

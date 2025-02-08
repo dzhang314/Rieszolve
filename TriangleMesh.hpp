@@ -14,19 +14,19 @@ struct HalfEdge {
 
 struct Triangle {
 
-    HalfEdge a;
-    HalfEdge b;
-    HalfEdge c;
+    HalfEdge ab;
+    HalfEdge bc;
+    HalfEdge ca;
 
     constexpr Triangle() noexcept
-        : a{INVALID_INDEX, INVALID_INDEX}
-        , b{INVALID_INDEX, INVALID_INDEX}
-        , c{INVALID_INDEX, INVALID_INDEX} {}
+        : ab{INVALID_INDEX, INVALID_INDEX}
+        , bc{INVALID_INDEX, INVALID_INDEX}
+        , ca{INVALID_INDEX, INVALID_INDEX} {}
 
     constexpr Triangle(int a_index, int b_index, int c_index) noexcept
-        : a{a_index, INVALID_INDEX}
-        , b{b_index, INVALID_INDEX}
-        , c{c_index, INVALID_INDEX} {}
+        : ab{a_index, INVALID_INDEX}
+        , bc{b_index, INVALID_INDEX}
+        , ca{c_index, INVALID_INDEX} {}
 
 }; // struct Triangle
 
