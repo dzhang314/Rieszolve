@@ -125,6 +125,13 @@ struct Polyhedron {
         vacant_face_indices.push_back(face_index);
     }
 
+    std::array<INDEX_T, 2> get_vertex_indices(const HalfEdge &half_edge) const {
+        return {
+            half_edge.origin_index,
+            half_edges.at(half_edge.twin_index).origin_index
+        };
+    }
+
     std::array<INDEX_T, 3> get_vertex_indices(const Face &face) const {
         std::array<INDEX_T, 3> result;
         HalfEdge half_edge = half_edges.at(face.half_edge_index);
@@ -136,13 +143,6 @@ struct Polyhedron {
         return result;
     }
 
-    std::array<INDEX_T, 2> get_vertex_indices(const HalfEdge &half_edge) const {
-        return {
-            half_edge.origin_index,
-            half_edges.at(half_edge.twin_index).origin_index
-        };
-    }
-
     std::array<INDEX_T, 3> get_half_edge_indices(const Face &face) const {
         std::array<INDEX_T, 3> result;
         result[0] = face.half_edge_index;
@@ -151,18 +151,24 @@ struct Polyhedron {
         return result;
     }
 
+    Plane3D get_normal_plane(
+        const Face &face, const std::vector<Vector3D> &points
+    ) const {
+        const auto vertex_indices = get_vertex_indices(face);
+        const Vector3D a = points.at(vertex_indices[0]);
+        const Vector3D b = points.at(vertex_indices[1]);
+        const Vector3D c = points.at(vertex_indices[2]);
+        return Plane3D{a, b, c};
+    }
+
+    // A list of half-edges is cycle-sorted if the target vertex
+    // of each half-edge coincides with the origin vertex of the
+    // next, with the last half-edge wrapping around to the first.
     bool cycle_sort_edges(std::vector<INDEX_T> &half_edge_indices) const {
-
-        // A list of half-edges is cycle-sorted if the target vertex
-        // of each half-edge coincides with the origin vertex of the
-        // next, with the last half-edge wrapping around to the first.
-
         // The empty list is trivially cycle-sorted.
         if (half_edge_indices.empty()) { return true; }
-
         using vec_size_t = std::vector<INDEX_T>::size_type;
         const vec_size_t n = half_edge_indices.size();
-
         // This O(n^2) algorithm is suboptimal, but it is fast enough
         // for this application and avoids dynamic data structures.
         for (vec_size_t i = 0; i < n - 1; ++i) {
@@ -183,7 +189,6 @@ struct Polyhedron {
             }
             if (!found) { return false; }
         }
-
         // Check that the last half-edge correctly wraps around to the first.
         const INDEX_T last_target_index =
             half_edges.at(half_edges.at(half_edge_indices[n - 1]).twin_index)
@@ -193,12 +198,99 @@ struct Polyhedron {
         return (first_origin_index == last_target_index);
     }
 
+    void find_visible_faces(
+        std::vector<INDEX_T> &visible_face_indices,
+        std::set<INDEX_T> &horizon_edge_indices,
+        const std::vector<Vector3D> &points,
+        const Vector3D &point
+    ) const {
+        visible_face_indices.clear();
+        const INDEX_T num_faces = static_cast<INDEX_T>(faces.size());
+        for (INDEX_T face_index = 0; face_index < num_faces; ++face_index) {
+            const Face &face = faces[face_index];
+            const Plane3D normal_plane = get_normal_plane(face, points);
+            if (normal_plane(point) >= 0.0) {
+                visible_face_indices.push_back(face_index);
+                const auto half_edge_indices = get_half_edge_indices(face);
+                for (const INDEX_T half_edge_index : half_edge_indices) {
+                    const HalfEdge &half_edge = half_edges.at(half_edge_index);
+                    const auto find_twin =
+                        horizon_edge_indices.find(half_edge.twin_index);
+                    if (find_twin == horizon_edge_indices.end()) {
+                        horizon_edge_indices.insert(half_edge_index);
+                    } else {
+                        horizon_edge_indices.erase(find_twin);
+                    }
+                }
+            }
+        }
+    }
+
+    bool extend(const std::vector<Vector3D> &points, INDEX_T point_index) {
+        std::vector<INDEX_T> visible_face_indices;
+        std::set<INDEX_T> horizon_edge_indices;
+        find_visible_faces(
+            visible_face_indices,
+            horizon_edge_indices,
+            points,
+            points.at(point_index)
+        );
+        for (const INDEX_T visible_face_index : visible_face_indices) {
+            const Face visible_face = faces.at(visible_face_index);
+            evict_face(visible_face_index);
+            const auto half_edge_indices = get_half_edge_indices(visible_face);
+            for (const INDEX_T half_edge_index : half_edge_indices) {
+                if (horizon_edge_indices.find(half_edge_index) ==
+                    horizon_edge_indices.end()) {
+                    evict_half_edge(half_edge_index);
+                }
+            }
+        }
+        std::vector<INDEX_T> horizon_edge_list;
+        horizon_edge_list.assign(
+            horizon_edge_indices.begin(), horizon_edge_indices.end()
+        );
+        if (!cycle_sort_edges(horizon_edge_list)) { return false; }
+        const INDEX_T num_horizon_edges =
+            static_cast<INDEX_T>(horizon_edge_list.size());
+        const INDEX_T num_new_half_edges =
+            num_horizon_edges + num_horizon_edges;
+        std::vector<INDEX_T> new_half_edge_indices;
+        for (INDEX_T i = 0; i < num_new_half_edges; ++i) {
+            new_half_edge_indices.push_back(add_empty_half_edge());
+        }
+        for (INDEX_T i = 0; i < num_horizon_edges; i++) {
+            const INDEX_T ab_index = horizon_edge_list[i];
+            HalfEdge &ab = half_edges.at(ab_index);
+            const auto ab_indices = get_vertex_indices(ab);
+            const INDEX_T new_face_index = add_empty_face();
+            Face &new_face = faces.at(new_face_index);
+            new_face.half_edge_index = ab_index;
+            const INDEX_T ca_index = new_half_edge_indices[2 * i + 0];
+            HalfEdge &ca = half_edges.at(ca_index);
+            const INDEX_T bc_index = new_half_edge_indices[2 * i + 1];
+            HalfEdge &bc = half_edges.at(bc_index);
+            ab.next_index = bc_index;
+            bc.next_index = ca_index;
+            ca.next_index = ab_index;
+            ab.face_index = new_face_index;
+            bc.face_index = new_face_index;
+            ca.face_index = new_face_index;
+            bc.origin_index = ab_indices[1];
+            ca.origin_index = point_index;
+            bc.twin_index = new_half_edge_indices
+                [(i + 1 == num_horizon_edges) ? 0 : 2 * i + 2];
+            ca.twin_index = new_half_edge_indices
+                [i == 0 ? (2 * num_horizon_edges - 1) : 2 * i - 1];
+        }
+        return true;
+    }
+
 }; // struct Polyhedron
 
 
 static inline Polyhedron
 construct_initial_tetrahedron(const std::vector<Vector3D> &points) {
-
     assert(points.size() >= 4);
     INDEX_T a_index = 0;
     INDEX_T b_index = 1;
@@ -212,155 +304,36 @@ construct_initial_tetrahedron(const std::vector<Vector3D> &points) {
         std::swap(c_index, d_index);
         std::swap(c, d);
     }
-
     Polyhedron result;
     result.faces.reserve(4);
     result.half_edges.reserve(12);
-
     result.faces.push_back({0});
     result.half_edges.push_back({a_index, 8, 0, 1});  // AB:  0 <-->  8
     result.half_edges.push_back({b_index, 11, 0, 2}); // BC:  1 <--> 11
     result.half_edges.push_back({c_index, 3, 0, 0});  // CA:  2 <-->  3
-
     result.faces.push_back({3});
     result.half_edges.push_back({a_index, 2, 1, 4});  // AC:  3 <-->  2
     result.half_edges.push_back({c_index, 10, 1, 5}); // CD:  4 <--> 10
     result.half_edges.push_back({d_index, 6, 1, 3});  // DA:  5 <-->  6
-
     result.faces.push_back({6});
     result.half_edges.push_back({a_index, 5, 2, 7}); //  AD:  6 <-->  5
     result.half_edges.push_back({d_index, 9, 2, 8}); //  DB:  7 <-->  9
     result.half_edges.push_back({b_index, 0, 2, 6}); //  BA:  8 <-->  0
-
     result.faces.push_back({9});
     result.half_edges.push_back({b_index, 7, 3, 10}); // BD:  9 <-->  7
     result.half_edges.push_back({d_index, 4, 3, 11}); // DC: 10 <-->  4
     result.half_edges.push_back({c_index, 1, 3, 9});  // CB: 11 <-->  1
-
     return result;
 }
 
 
-static inline bool find_visible_faces(
-    std::vector<INDEX_T> &visible_face_indices,
-    std::vector<INDEX_T> &horizon_edge_indices,
-    const Polyhedron &polyhedron,
-    const std::vector<Vector3D> &points,
-    const Vector3D &point
-) {
-    visible_face_indices.clear();
-    horizon_edge_indices.clear();
-    std::set<INDEX_T> horizon_edge_set;
-    const INDEX_T num_faces = static_cast<INDEX_T>(polyhedron.faces.size());
-    for (INDEX_T face_index = 0; face_index < num_faces; ++face_index) {
-        const Face &face = polyhedron.faces[face_index];
-        const auto vertex_indices = polyhedron.get_vertex_indices(face);
-        const Vector3D a = points.at(vertex_indices[0]);
-        const Vector3D b = points.at(vertex_indices[1]);
-        const Vector3D c = points.at(vertex_indices[2]);
-        const Plane3D plane{a, b, c};
-        if (plane(point) >= 0.0) {
-            visible_face_indices.push_back(face_index);
-            const auto half_edge_indices =
-                polyhedron.get_half_edge_indices(face);
-            for (const INDEX_T half_edge_index : half_edge_indices) {
-                const HalfEdge &half_edge =
-                    polyhedron.half_edges.at(half_edge_index);
-                const auto find_twin =
-                    horizon_edge_set.find(half_edge.twin_index);
-                if (find_twin == horizon_edge_set.end()) {
-                    horizon_edge_set.insert(half_edge_index);
-                } else {
-                    horizon_edge_set.erase(find_twin);
-                }
-            }
-        }
-    }
-    horizon_edge_indices.assign(
-        horizon_edge_set.begin(), horizon_edge_set.end()
-    );
-    return polyhedron.cycle_sort_edges(horizon_edge_indices);
-}
-
-
 static inline Polyhedron convex_hull(const std::vector<Vector3D> &points) {
-
     const INDEX_T num_points = static_cast<INDEX_T>(points.size());
-    if (num_points < 4) { return {}; }
+    if (num_points < 4) { return Polyhedron{}; }
     Polyhedron polyhedron = construct_initial_tetrahedron(points);
-
     for (INDEX_T point_index = 4; point_index < num_points; ++point_index) {
-        const Vector3D point = points[point_index];
-
-        std::vector<INDEX_T> visible_face_indices;
-        std::vector<INDEX_T> horizon_edge_indices;
-        const bool success = find_visible_faces(
-            visible_face_indices,
-            horizon_edge_indices,
-            polyhedron,
-            points,
-            point
-        );
-        if (!success) { return {}; }
-
-        for (const INDEX_T visible_face_index : visible_face_indices) {
-            const Face visible_face = polyhedron.faces.at(visible_face_index);
-            polyhedron.evict_face(visible_face_index);
-            const auto half_edge_indices =
-                polyhedron.get_half_edge_indices(visible_face);
-            for (const INDEX_T half_edge_index : half_edge_indices) {
-                if (std::find(
-                        horizon_edge_indices.begin(),
-                        horizon_edge_indices.end(),
-                        half_edge_index
-                    ) == horizon_edge_indices.end()) {
-                    polyhedron.evict_half_edge(half_edge_index);
-                }
-            }
-        }
-
-        const INDEX_T num_horizon_edges =
-            static_cast<INDEX_T>(horizon_edge_indices.size());
-        const INDEX_T num_new_half_edges =
-            num_horizon_edges + num_horizon_edges;
-        std::vector<INDEX_T> new_half_edge_indices;
-        for (INDEX_T i = 0; i < num_new_half_edges; ++i) {
-            new_half_edge_indices.push_back(polyhedron.add_empty_half_edge());
-        }
-
-        for (INDEX_T i = 0; i < num_horizon_edges; i++) {
-
-            const INDEX_T ab_index = horizon_edge_indices[i];
-            HalfEdge &ab = polyhedron.half_edges.at(ab_index);
-            const auto ab_indices = polyhedron.get_vertex_indices(ab);
-
-            const INDEX_T new_face_index = polyhedron.add_empty_face();
-            Face &new_face = polyhedron.faces.at(new_face_index);
-            new_face.half_edge_index = ab_index;
-
-            const INDEX_T ca_index = new_half_edge_indices[2 * i + 0];
-            HalfEdge &ca = polyhedron.half_edges.at(ca_index);
-            const INDEX_T bc_index = new_half_edge_indices[2 * i + 1];
-            HalfEdge &bc = polyhedron.half_edges.at(bc_index);
-
-            ab.next_index = bc_index;
-            bc.next_index = ca_index;
-            ca.next_index = ab_index;
-
-            ab.face_index = new_face_index;
-            bc.face_index = new_face_index;
-            ca.face_index = new_face_index;
-
-            bc.origin_index = ab_indices[1];
-            ca.origin_index = point_index;
-
-            bc.twin_index = new_half_edge_indices
-                [(i + 1 == num_horizon_edges) ? 0 : 2 * i + 2];
-            ca.twin_index = new_half_edge_indices
-                [i == 0 ? (2 * num_horizon_edges - 1) : 2 * i - 1];
-        }
+        if (!polyhedron.extend(points, point_index)) { return Polyhedron{}; }
     }
-
     return polyhedron;
 }
 
@@ -372,7 +345,6 @@ void convex_hull(
     const double *__restrict__ points_z,
     int num_points
 ) {
-
     const int num_faces = 2 * num_points - 4;
     if (num_points < 4) {
         for (int i = 0; i < num_faces; ++i) {
@@ -381,7 +353,6 @@ void convex_hull(
             faces[3 * i + 2] = -1;
         }
     }
-
     std::vector<Vector3D> points;
     points.reserve(static_cast<std::vector<Vector3D>::size_type>(num_points));
     for (int i = 0; i < num_points; ++i) {
@@ -391,7 +362,6 @@ void convex_hull(
              static_cast<REAL_T>(points_z[i])}
         );
     }
-
     using vec_size_t = std::vector<Face>::size_type;
     const vec_size_t faces_size = static_cast<vec_size_t>(num_faces);
     const Polyhedron polyhedron = convex_hull(points);
