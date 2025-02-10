@@ -1,4 +1,4 @@
-#include "RieszKernels.hpp"
+#include "RieszolveKernels.hpp"
 
 #include <cmath>
 using std::fma;

@@ -5,7 +5,7 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "RieszKernels.hpp"
+#include "RieszolveKernels.hpp"
 
 
 RieszolveOptimizer::RieszolveOptimizer(int num_points_arg) noexcept {
