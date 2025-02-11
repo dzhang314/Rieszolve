@@ -26,11 +26,11 @@ RieszolveRenderer::RieszolveRenderer(int num_points_) noexcept {
 
 
 RieszolveRenderer::~RieszolveRenderer() noexcept {
-    delete[] vertex_data;
-    delete[] color_data;
-    delete[] integer_data;
-    delete[] float_data;
-    delete[] double_data;
+    if (vertex_data) { delete[] vertex_data; }
+    if (color_data) { delete[] color_data; }
+    if (integer_data) { delete[] integer_data; }
+    if (float_data) { delete[] float_data; }
+    if (double_data) { delete[] double_data; }
 }
 
 
