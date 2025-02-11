@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <atomic>
 #include <cfloat>
 #include <cmath>
 #include <cstdio>
@@ -34,19 +35,25 @@ constexpr int MAX_NUM_POINTS = 99999;
 
 static int num_points = 0;
 static int num_faces = 0;
-static SDL_Time last_step_time = 0;
-static SDL_Time last_hull_time = 0;
-static SDL_Time last_draw_time = 0;
-static SDL_Time last_step_duration = 0;
-static SDL_Time last_hull_duration = 0;
-static SDL_Time last_draw_duration = 0;
 static double angle = 0.0;
 static int angular_velocity = 0;
-static bool conjugate_gradient = false;
 static bool render_forces = false;
 static bool render_neighbors = false;
-static bool randomize_requested = false;
-static bool quit = false;
+
+static std::atomic<SDL_Time> last_step_time{0};
+static std::atomic<SDL_Time> last_hull_time{0};
+static std::atomic<SDL_Time> last_draw_time{0};
+static std::atomic<SDL_Time> last_step_duration{0};
+static std::atomic<SDL_Time> last_hull_duration{0};
+static std::atomic<SDL_Time> last_draw_duration{0};
+static std::atomic<int> num_iterations{0};
+static std::atomic<double> energy{0.0};
+static std::atomic<double> rms_force{0.0};
+static std::atomic<double> last_step_size{0.0};
+static std::atomic<double> rms_step_length{0.0};
+static std::atomic<bool> conjugate_gradient{false};
+static std::atomic<bool> randomize_requested{false};
+static std::atomic<bool> quit{false};
 
 static double *points_x = nullptr;
 static double *points_y = nullptr;
@@ -85,6 +92,11 @@ static inline int SDLCALL run_optimizer(void *) {
             success = optimizer->gradient_descent_step();
         }
         if (success) {
+            num_iterations = optimizer->get_num_iterations();
+            energy = optimizer->get_energy();
+            rms_force = optimizer->get_rms_force();
+            last_step_size = optimizer->get_last_step_size();
+            rms_step_length = optimizer->get_rms_step_length();
             SDL_LockRWLockForWriting(point_force_data_lock);
             optimizer->export_points(points_x, points_y, points_z);
             optimizer->export_forces(forces_x, forces_y, forces_z);
@@ -311,7 +323,6 @@ SDL_AppResult SDL_AppIterate(void *) {
     const float origin_x = 0.5f * static_cast<float>(width);
     const float origin_y = 0.5f * static_cast<float>(height);
     const float scale = 0.375f * static_cast<float>(std::min(width, height));
-    const double rms_force = optimizer->get_rms_force();
     const float force_scale = 0.125f * scale / static_cast<float>(rms_force);
 
     SDL_SetRenderDrawColor(sdl_renderer_handle, 0, 0, 0, SDL_ALPHA_OPAQUE);
@@ -383,11 +394,11 @@ SDL_AppResult SDL_AppIterate(void *) {
         debug_y += 10.0f;                                                      \
     } while (0)
     DEBUG_PRINT("FPS:%5.0f", 1.0e9 / static_cast<double>(last_draw_duration));
-    DEBUG_PRINT("Iteration count: %d", optimizer->get_num_iterations());
-    DEBUG_PRINT("Coulomb energy:  %.15e", optimizer->get_energy());
-    DEBUG_PRINT("RMS force:       %.15e", rms_force);
-    DEBUG_PRINT("Step size:       %.15e", optimizer->get_last_step_size());
-    DEBUG_PRINT("RMS step length: %.15e", optimizer->get_rms_step_length());
+    DEBUG_PRINT("Iteration count: %d", num_iterations.load());
+    DEBUG_PRINT("Coulomb energy:  %.15e", energy.load());
+    DEBUG_PRINT("RMS force:       %.15e", rms_force.load());
+    DEBUG_PRINT("Step size:       %.15e", last_step_size.load());
+    DEBUG_PRINT("RMS step length: %.15e", rms_step_length.load());
     DEBUG_PRINT(
         "Angular velocity: %+.1f rad/s",
         0.1 * static_cast<double>(angular_velocity)

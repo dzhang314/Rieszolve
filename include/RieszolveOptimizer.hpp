@@ -57,10 +57,10 @@ public:
     ~RieszolveOptimizer() noexcept;
     bool is_allocated() const noexcept;
 
+    int get_num_iterations() const noexcept;
     double get_energy() const noexcept;
     double get_rms_force() const noexcept;
     double get_last_step_size() const noexcept;
-    int get_num_iterations() const noexcept;
     double get_rms_step_length() const noexcept;
 
     void randomize_points(unsigned int seed) noexcept;

@@ -45,6 +45,11 @@ bool RieszolveOptimizer::is_allocated() const noexcept {
 }
 
 
+int RieszolveOptimizer::get_num_iterations() const noexcept {
+    return num_iterations;
+}
+
+
 double RieszolveOptimizer::get_energy() const noexcept { return energy; }
 
 
@@ -55,11 +60,6 @@ double RieszolveOptimizer::get_rms_force() const noexcept {
 
 double RieszolveOptimizer::get_last_step_size() const noexcept {
     return last_step_size;
-}
-
-
-int RieszolveOptimizer::get_num_iterations() const noexcept {
-    return num_iterations;
 }
 
 
