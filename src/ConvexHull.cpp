@@ -345,13 +345,15 @@ void convex_hull(
     const double *__restrict__ points_z,
     int num_points
 ) {
-    const int num_faces = 2 * num_points - 4;
+    int num_faces = 2 * num_points - 4;
+    if (num_faces < 0) { num_faces = 0; }
     if (num_points < 4) {
         for (int i = 0; i < num_faces; ++i) {
             faces[3 * i + 0] = -1;
             faces[3 * i + 1] = -1;
             faces[3 * i + 2] = -1;
         }
+        return;
     }
     std::vector<Vector3D> points;
     points.reserve(static_cast<std::vector<Vector3D>::size_type>(num_points));
