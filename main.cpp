@@ -72,7 +72,9 @@ static inline int SDLCALL run_optimizer(void *) {
     using namespace GlobalVariables;
     while (!quit) {
         if (randomize_requested) {
-            optimizer->randomize_points(0);
+            SDL_Time seed_time;
+            SDL_GetCurrentTime(&seed_time);
+            optimizer->randomize_points(static_cast<unsigned>(seed_time));
             randomize_requested = false;
         }
         bool success;
@@ -227,7 +229,8 @@ SDL_AppResult SDL_AppInit(void **, int argc, char **argv) {
         );
         return SDL_APP_FAILURE;
     }
-    optimizer->randomize_points(0);
+
+    optimizer->randomize_points(static_cast<unsigned>(initial_time));
     optimizer->export_points(points_x, points_y, points_z);
     optimizer->export_forces(forces_x, forces_y, forces_z);
 
