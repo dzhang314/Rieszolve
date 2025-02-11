@@ -5,7 +5,7 @@ class RieszolveOptimizer {
 
     static constexpr int CHUNK_SIZE = 8;
 
-    double *__restrict__ data;
+    double *data;
     double energy;
     double force_norm_squared;
     double prev_force_norm_squared;

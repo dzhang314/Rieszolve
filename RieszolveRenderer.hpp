@@ -6,22 +6,11 @@
 
 class RieszolveRenderer {
 
-    double *__restrict__ double_data;
-    // renderer_points_x -- size num_points
-    // renderer_points_y -- size num_points
-    // renderer_points_z -- size num_points
-    // renderer_forces_x -- size num_points
-    // renderer_forces_y -- size num_points
-    // renderer_forces_z -- size num_points
-    float *__restrict__ float_data;
-    // screen_points -- size 3 * num_points
-    // screen_forces -- size 2 * num_points
-    int *__restrict__ integer_data;
-    // renderer_neighbors -- size num_points
-    // renderer_faces -- size 3 * num_faces
-    SDL_FColor *__restrict__ color_data;  // size num_points
-    SDL_Vertex *__restrict__ vertex_data; // size NUM_CIRCLE_VERTICES *
-                                          // num_points
+    double *double_data;
+    float *float_data;
+    int *integer_data;
+    SDL_FColor *color_data;
+    SDL_Vertex *vertex_data;
     int num_points;
 
 public:
