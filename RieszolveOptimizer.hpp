@@ -5,7 +5,7 @@ class RieszolveOptimizer {
 
     static constexpr int CHUNK_SIZE = 8;
 
-    double *data;
+    double *__restrict__ data;
     double energy;
     double force_norm_squared;
     double prev_force_norm_squared;
@@ -67,12 +67,12 @@ public:
     bool gradient_descent_step() noexcept;
     bool conjugate_gradient_step() noexcept;
 
-    void copy_points(
+    void export_points(
         double *__restrict__ points_x,
         double *__restrict__ points_y,
         double *__restrict__ points_z
     ) noexcept;
-    void copy_forces(
+    void export_forces(
         double *__restrict__ forces_x,
         double *__restrict__ forces_y,
         double *__restrict__ forces_z

@@ -8,14 +8,15 @@
 #include "RieszolveKernels.hpp"
 
 
-RieszolveOptimizer::RieszolveOptimizer(int num_points_arg) noexcept {
+RieszolveOptimizer::RieszolveOptimizer(int num_points_) noexcept {
     energy = std::nan("");
     force_norm_squared = std::nan("");
     prev_force_norm_squared = std::nan("");
     last_step_size = std::nan("");
     last_step_length_squared = std::nan("");
-    num_points = num_points_arg;
-    num_chunks = (num_points_arg + (CHUNK_SIZE - 1)) / CHUNK_SIZE;
+    num_points = num_points_;
+    if (num_points < 0) { num_points = 0; }
+    num_chunks = (num_points_ + (CHUNK_SIZE - 1)) / CHUNK_SIZE;
     num_iterations = 0;
     const std::size_t alignment = CHUNK_SIZE * sizeof(double);
     const std::size_t size =
@@ -320,23 +321,23 @@ bool RieszolveOptimizer::conjugate_gradient_step() noexcept {
 }
 
 
-void RieszolveOptimizer::copy_points(
-    double *__restrict__ points_x_arg,
-    double *__restrict__ points_y_arg,
-    double *__restrict__ points_z_arg
+void RieszolveOptimizer::export_points(
+    double *__restrict__ points_x_,
+    double *__restrict__ points_y_,
+    double *__restrict__ points_z_
 ) noexcept {
-    copy_subarray(points_x_arg, points_x());
-    copy_subarray(points_y_arg, points_y());
-    copy_subarray(points_z_arg, points_z());
+    copy_subarray(points_x_, points_x());
+    copy_subarray(points_y_, points_y());
+    copy_subarray(points_z_, points_z());
 }
 
 
-void RieszolveOptimizer::copy_forces(
-    double *__restrict__ forces_x_arg,
-    double *__restrict__ forces_y_arg,
-    double *__restrict__ forces_z_arg
+void RieszolveOptimizer::export_forces(
+    double *__restrict__ forces_x_,
+    double *__restrict__ forces_y_,
+    double *__restrict__ forces_z_
 ) noexcept {
-    copy_subarray(forces_x_arg, forces_x());
-    copy_subarray(forces_y_arg, forces_y());
-    copy_subarray(forces_z_arg, forces_z());
+    copy_subarray(forces_x_, forces_x());
+    copy_subarray(forces_y_, forces_y());
+    copy_subarray(forces_z_, forces_z());
 }
