@@ -2,37 +2,23 @@
     "configurations": [
         {
             "name": "Win32",
-            "includePath": [
-                "${workspaceFolder}/**",
-                "C:/Programs/msys64/ucrt64/include"
-            ],
+            "includePath": ["include", "C:/Programs/msys64/ucrt64/include"],
             "compilerPath": "C:/Programs/msys64/ucrt64/bin/clang++.exe",
             "intelliSenseMode": "windows-clang-x64",
-            "defines": [
-                "__AVX512F__"
-            ]
+            "defines": ["__AVX512F__"]
         },
         {
             "name": "Mac",
-            "includePath": [
-                "${workspaceFolder}/**",
-                "/opt/homebrew/Cellar/sdl3/3.2.4/include",
-                "/opt/homebrew/Cellar/cgal/6.0.1/include",
-                "/opt/homebrew/Cellar/boost/1.87.0/include"
-            ],
+            "includePath": ["include", "/opt/homebrew/Cellar/sdl3/3.2.4/include"],
             "compilerPath": "/usr/bin/clang++",
             "intelliSenseMode": "macos-clang-arm64"
         },
         {
             "name": "Linux",
-            "includePath": [
-                "${workspaceFolder}/**"
-            ],
+            "includePath": ["include"],
             "compilerPath": "/usr/bin/clang++",
             "intelliSenseMode": "linux-clang-x64",
-            "defines": [
-                "__AVX512F__"
-            ]
+            "defines": ["__AVX512F__"]
         }
     ],
     "version": 4
