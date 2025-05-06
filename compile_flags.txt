@@ -1,0 +1,5 @@
+-std=c++11
+-I./include
+-Weverything
+-Wno-c++98-compat-pedantic
+-Wno-unsafe-buffer-usage
