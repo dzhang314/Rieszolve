@@ -171,7 +171,8 @@ void RieszolveRenderer::compute_screen_forces(
 }
 
 
-void RieszolveRenderer::render_nearest_neighbor_mesh(SDL_Renderer *renderer
+void RieszolveRenderer::render_nearest_neighbor_mesh(
+    SDL_Renderer *renderer
 ) noexcept {
     int num_faces = 2 * num_points - 4;
     if (num_faces < 0) { num_faces = 0; }

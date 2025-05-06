@@ -67,8 +67,8 @@ struct HighPrecisionAccumulator {
         two_sum(terms[1], x);
     }
 
-    HighPrecisionAccumulator &operator+=(const HighPrecisionAccumulator &other
-    ) noexcept {
+    HighPrecisionAccumulator &
+    operator+=(const HighPrecisionAccumulator &other) noexcept {
         add(other.terms[0]);
         add(other.terms[1]);
         return *this;
