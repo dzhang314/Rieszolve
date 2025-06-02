@@ -5,7 +5,8 @@ using StaticArrays: SA
 ################################################################################
 
 
-export chiral_icosahedral_group, full_icosahedral_group,
+export chiral_icosahedral_group, chiral_icosahedral_orbit,
+    full_icosahedral_group, full_icosahedral_orbit,
     icosahedron_vertices, icosahedron_edge_centers, icosahedron_face_centers
 
 
@@ -80,6 +81,89 @@ export chiral_icosahedral_group, full_icosahedral_group,
         -hpsi -half +hphi; -half -hphi +hpsi; +hphi +hpsi -half;;;
         -hpsi -half -hphi; +half +hphi +hpsi; +hphi +hpsi +half;;;
         -hpsi -half -hphi; -half -hphi -hpsi; -hphi -hpsi -half
+    ]
+end
+
+
+@inline function chiral_icosahedral_orbit(x::T, y::T, z::T) where {T}
+    _one = one(T)
+    _two = _one + _one
+    _four = _two + _two
+    _five = _four + _one
+    _sqrt_five = sqrt(_five)
+    half = inv(_two)
+    hphi = (_one + _sqrt_five) / _four # half of the golden ratio
+    hpsi = (_one - _sqrt_five) / _four # half of the golden ratio conjugate
+    hx = half * x
+    hy = half * y
+    hz = half * z
+    ax = hphi * x
+    ay = hphi * y
+    az = hphi * z
+    bx = hpsi * x
+    by = hpsi * y
+    bz = hpsi * z
+    return SA{T}[
+        +x; +y; +z;;
+        +x; -y; -z;;
+        -x; +y; -z;;
+        -x; -y; +z;;
+        +y; +z; +x;;
+        +y; -z; -x;;
+        -y; +z; -x;;
+        -y; -z; +x;;
+        +z; +x; +y;;
+        +z; -x; -y;;
+        -z; +x; -y;;
+        -z; -x; +y;;
+        +hx+ay+bz; +ax+by+hz; -bx-hy-az;;
+        +hx+ay+bz; -ax-by-hz; +bx+hy+az;;
+        +hx+ay-bz; +ax+by-hz; +bx+hy-az;;
+        +hx+ay-bz; -ax-by+hz; -bx-hy+az;;
+        +hx-ay+bz; +ax-by+hz; +bx-hy+az;;
+        +hx-ay+bz; -ax+by-hz; -bx+hy-az;;
+        +hx-ay-bz; +ax-by-hz; -bx+hy+az;;
+        +hx-ay-bz; -ax+by+hz; +bx-hy-az;;
+        -hx+ay+bz; +ax-by-hz; +bx-hy-az;;
+        -hx+ay+bz; -ax+by+hz; -bx+hy+az;;
+        -hx+ay-bz; +ax-by+hz; -bx+hy-az;;
+        -hx+ay-bz; -ax+by-hz; +bx-hy+az;;
+        -hx-ay+bz; +ax+by-hz; -bx-hy+az;;
+        -hx-ay+bz; -ax-by+hz; +bx+hy-az;;
+        -hx-ay-bz; +ax+by+hz; +bx+hy+az;;
+        -hx-ay-bz; -ax-by-hz; -bx-hy-az;;
+        +ax+by+hz; +bx+hy+az; -hx-ay-bz;;
+        +ax+by+hz; -bx-hy-az; +hx+ay+bz;;
+        +ax+by-hz; +bx+hy-az; +hx+ay-bz;;
+        +ax+by-hz; -bx-hy+az; -hx-ay+bz;;
+        +ax-by+hz; +bx-hy+az; +hx-ay+bz;;
+        +ax-by+hz; -bx+hy-az; -hx+ay-bz;;
+        +ax-by-hz; +bx-hy-az; -hx+ay+bz;;
+        +ax-by-hz; -bx+hy+az; +hx-ay-bz;;
+        -ax+by+hz; +bx-hy-az; +hx-ay-bz;;
+        -ax+by+hz; -bx+hy+az; -hx+ay+bz;;
+        -ax+by-hz; +bx-hy+az; -hx+ay-bz;;
+        -ax+by-hz; -bx+hy-az; +hx-ay+bz;;
+        -ax-by+hz; +bx+hy-az; -hx-ay+bz;;
+        -ax-by+hz; -bx-hy+az; +hx+ay-bz;;
+        -ax-by-hz; +bx+hy+az; +hx+ay+bz;;
+        -ax-by-hz; -bx-hy-az; -hx-ay-bz;;
+        +bx+hy+az; +hx+ay+bz; -ax-by-hz;;
+        +bx+hy+az; -hx-ay-bz; +ax+by+hz;;
+        +bx+hy-az; +hx+ay-bz; +ax+by-hz;;
+        +bx+hy-az; -hx-ay+bz; -ax-by+hz;;
+        +bx-hy+az; +hx-ay+bz; +ax-by+hz;;
+        +bx-hy+az; -hx+ay-bz; -ax+by-hz;;
+        +bx-hy-az; +hx-ay-bz; -ax+by+hz;;
+        +bx-hy-az; -hx+ay+bz; +ax-by-hz;;
+        -bx+hy+az; +hx-ay-bz; +ax-by-hz;;
+        -bx+hy+az; -hx+ay+bz; -ax+by+hz;;
+        -bx+hy-az; +hx-ay+bz; -ax+by-hz;;
+        -bx+hy-az; -hx+ay-bz; +ax-by+hz;;
+        -bx-hy+az; +hx+ay-bz; -ax-by+hz;;
+        -bx-hy+az; -hx-ay+bz; +ax+by-hz;;
+        -bx-hy-az; +hx+ay+bz; +ax+by+hz;;
+        -bx-hy-az; -hx-ay-bz; -ax-by-hz
     ]
 end
 
@@ -215,6 +299,149 @@ end
         -hpsi -half -hphi; +half +hphi +hpsi; -hphi -hpsi -half;;;
         -hpsi -half -hphi; -half -hphi -hpsi; +hphi +hpsi +half;;;
         -hpsi -half -hphi; -half -hphi -hpsi; -hphi -hpsi -half
+    ]
+end
+
+
+@inline function full_icosahedral_orbit(x::T, y::T, z::T) where {T}
+    _one = one(T)
+    _two = _one + _one
+    _four = _two + _two
+    _five = _four + _one
+    _sqrt_five = sqrt(_five)
+    half = inv(_two)
+    hphi = (_one + _sqrt_five) / _four # half of the golden ratio
+    hpsi = (_one - _sqrt_five) / _four # half of the golden ratio conjugate
+    hx = half * x
+    hy = half * y
+    hz = half * z
+    ax = hphi * x
+    ay = hphi * y
+    az = hphi * z
+    bx = hpsi * x
+    by = hpsi * y
+    bz = hpsi * z
+    return SA{T}[
+        +x; +y; +z;;
+        +x; +y; -z;;
+        +x; -y; +z;;
+        +x; -y; -z;;
+        -x; +y; +z;;
+        -x; +y; -z;;
+        -x; -y; +z;;
+        -x; -y; -z;;
+        +y; +z; +x;;
+        +y; +z; -x;;
+        +y; -z; +x;;
+        +y; -z; -x;;
+        -y; +z; +x;;
+        -y; +z; -x;;
+        -y; -z; +x;;
+        -y; -z; -x;;
+        +z; +x; +y;;
+        +z; +x; -y;;
+        +z; -x; +y;;
+        +z; -x; -y;;
+        -z; +x; +y;;
+        -z; +x; -y;;
+        -z; -x; +y;;
+        -z; -x; -y;;
+        +hx+ay+bz; +ax+by+hz; +bx+hy+az;;
+        +hx+ay+bz; +ax+by+hz; -bx-hy-az;;
+        +hx+ay+bz; -ax-by-hz; +bx+hy+az;;
+        +hx+ay+bz; -ax-by-hz; -bx-hy-az;;
+        +hx+ay-bz; +ax+by-hz; +bx+hy-az;;
+        +hx+ay-bz; +ax+by-hz; -bx-hy+az;;
+        +hx+ay-bz; -ax-by+hz; +bx+hy-az;;
+        +hx+ay-bz; -ax-by+hz; -bx-hy+az;;
+        +hx-ay+bz; +ax-by+hz; +bx-hy+az;;
+        +hx-ay+bz; +ax-by+hz; -bx+hy-az;;
+        +hx-ay+bz; -ax+by-hz; +bx-hy+az;;
+        +hx-ay+bz; -ax+by-hz; -bx+hy-az;;
+        +hx-ay-bz; +ax-by-hz; +bx-hy-az;;
+        +hx-ay-bz; +ax-by-hz; -bx+hy+az;;
+        +hx-ay-bz; -ax+by+hz; +bx-hy-az;;
+        +hx-ay-bz; -ax+by+hz; -bx+hy+az;;
+        -hx+ay+bz; +ax-by-hz; +bx-hy-az;;
+        -hx+ay+bz; +ax-by-hz; -bx+hy+az;;
+        -hx+ay+bz; -ax+by+hz; +bx-hy-az;;
+        -hx+ay+bz; -ax+by+hz; -bx+hy+az;;
+        -hx+ay-bz; +ax-by+hz; +bx-hy+az;;
+        -hx+ay-bz; +ax-by+hz; -bx+hy-az;;
+        -hx+ay-bz; -ax+by-hz; +bx-hy+az;;
+        -hx+ay-bz; -ax+by-hz; -bx+hy-az;;
+        -hx-ay+bz; +ax+by-hz; +bx+hy-az;;
+        -hx-ay+bz; +ax+by-hz; -bx-hy+az;;
+        -hx-ay+bz; -ax-by+hz; +bx+hy-az;;
+        -hx-ay+bz; -ax-by+hz; -bx-hy+az;;
+        -hx-ay-bz; +ax+by+hz; +bx+hy+az;;
+        -hx-ay-bz; +ax+by+hz; -bx-hy-az;;
+        -hx-ay-bz; -ax-by-hz; +bx+hy+az;;
+        -hx-ay-bz; -ax-by-hz; -bx-hy-az;;
+        +ax+by+hz; +bx+hy+az; +hx+ay+bz;;
+        +ax+by+hz; +bx+hy+az; -hx-ay-bz;;
+        +ax+by+hz; -bx-hy-az; +hx+ay+bz;;
+        +ax+by+hz; -bx-hy-az; -hx-ay-bz;;
+        +ax+by-hz; +bx+hy-az; +hx+ay-bz;;
+        +ax+by-hz; +bx+hy-az; -hx-ay+bz;;
+        +ax+by-hz; -bx-hy+az; +hx+ay-bz;;
+        +ax+by-hz; -bx-hy+az; -hx-ay+bz;;
+        +ax-by+hz; +bx-hy+az; +hx-ay+bz;;
+        +ax-by+hz; +bx-hy+az; -hx+ay-bz;;
+        +ax-by+hz; -bx+hy-az; +hx-ay+bz;;
+        +ax-by+hz; -bx+hy-az; -hx+ay-bz;;
+        +ax-by-hz; +bx-hy-az; +hx-ay-bz;;
+        +ax-by-hz; +bx-hy-az; -hx+ay+bz;;
+        +ax-by-hz; -bx+hy+az; +hx-ay-bz;;
+        +ax-by-hz; -bx+hy+az; -hx+ay+bz;;
+        -ax+by+hz; +bx-hy-az; +hx-ay-bz;;
+        -ax+by+hz; +bx-hy-az; -hx+ay+bz;;
+        -ax+by+hz; -bx+hy+az; +hx-ay-bz;;
+        -ax+by+hz; -bx+hy+az; -hx+ay+bz;;
+        -ax+by-hz; +bx-hy+az; +hx-ay+bz;;
+        -ax+by-hz; +bx-hy+az; -hx+ay-bz;;
+        -ax+by-hz; -bx+hy-az; +hx-ay+bz;;
+        -ax+by-hz; -bx+hy-az; -hx+ay-bz;;
+        -ax-by+hz; +bx+hy-az; +hx+ay-bz;;
+        -ax-by+hz; +bx+hy-az; -hx-ay+bz;;
+        -ax-by+hz; -bx-hy+az; +hx+ay-bz;;
+        -ax-by+hz; -bx-hy+az; -hx-ay+bz;;
+        -ax-by-hz; +bx+hy+az; +hx+ay+bz;;
+        -ax-by-hz; +bx+hy+az; -hx-ay-bz;;
+        -ax-by-hz; -bx-hy-az; +hx+ay+bz;;
+        -ax-by-hz; -bx-hy-az; -hx-ay-bz;;
+        +bx+hy+az; +hx+ay+bz; +ax+by+hz;;
+        +bx+hy+az; +hx+ay+bz; -ax-by-hz;;
+        +bx+hy+az; -hx-ay-bz; +ax+by+hz;;
+        +bx+hy+az; -hx-ay-bz; -ax-by-hz;;
+        +bx+hy-az; +hx+ay-bz; +ax+by-hz;;
+        +bx+hy-az; +hx+ay-bz; -ax-by+hz;;
+        +bx+hy-az; -hx-ay+bz; +ax+by-hz;;
+        +bx+hy-az; -hx-ay+bz; -ax-by+hz;;
+        +bx-hy+az; +hx-ay+bz; +ax-by+hz;;
+        +bx-hy+az; +hx-ay+bz; -ax+by-hz;;
+        +bx-hy+az; -hx+ay-bz; +ax-by+hz;;
+        +bx-hy+az; -hx+ay-bz; -ax+by-hz;;
+        +bx-hy-az; +hx-ay-bz; +ax-by-hz;;
+        +bx-hy-az; +hx-ay-bz; -ax+by+hz;;
+        +bx-hy-az; -hx+ay+bz; +ax-by-hz;;
+        +bx-hy-az; -hx+ay+bz; -ax+by+hz;;
+        -bx+hy+az; +hx-ay-bz; +ax-by-hz;;
+        -bx+hy+az; +hx-ay-bz; -ax+by+hz;;
+        -bx+hy+az; -hx+ay+bz; +ax-by-hz;;
+        -bx+hy+az; -hx+ay+bz; -ax+by+hz;;
+        -bx+hy-az; +hx-ay+bz; +ax-by+hz;;
+        -bx+hy-az; +hx-ay+bz; -ax+by-hz;;
+        -bx+hy-az; -hx+ay-bz; +ax-by+hz;;
+        -bx+hy-az; -hx+ay-bz; -ax+by-hz;;
+        -bx-hy+az; +hx+ay-bz; +ax+by-hz;;
+        -bx-hy+az; +hx+ay-bz; -ax-by+hz;;
+        -bx-hy+az; -hx-ay+bz; +ax+by-hz;;
+        -bx-hy+az; -hx-ay+bz; -ax-by+hz;;
+        -bx-hy-az; +hx+ay+bz; +ax+by+hz;;
+        -bx-hy-az; +hx+ay+bz; -ax-by-hz;;
+        -bx-hy-az; -hx-ay-bz; +ax+by+hz;;
+        -bx-hy-az; -hx-ay-bz; -ax-by-hz
     ]
 end
 
