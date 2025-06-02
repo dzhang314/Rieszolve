@@ -17,9 +17,9 @@ export chiral_icosahedral_group, chiral_icosahedral_orbit,
     _four = _two + _two
     _five = _four + _one
     _sqrt_five = sqrt(_five)
-    half = inv(_two)
-    hphi = (_one + _sqrt_five) / _four # half of the golden ratio
-    hpsi = (_one - _sqrt_five) / _four # half of the golden ratio conjugate
+    h = inv(_two)
+    a = (_one + _sqrt_five) / _four # half of the golden ratio
+    b = (_one - _sqrt_five) / _four # half of the golden ratio conjugate
     return SA{T}[
         +_one _zero _zero; _zero +_one _zero; _zero _zero +_one;;;
         +_one _zero _zero; _zero -_one _zero; _zero _zero -_one;;;
@@ -33,54 +33,54 @@ export chiral_icosahedral_group, chiral_icosahedral_orbit,
         _zero _zero +_one; -_one _zero _zero; _zero -_one _zero;;;
         _zero _zero -_one; +_one _zero _zero; _zero -_one _zero;;;
         _zero _zero -_one; -_one _zero _zero; _zero +_one _zero;;;
-        +half +hphi +hpsi; +hphi +hpsi +half; -hpsi -half -hphi;;;
-        +half +hphi +hpsi; -hphi -hpsi -half; +hpsi +half +hphi;;;
-        +half +hphi -hpsi; +hphi +hpsi -half; +hpsi +half -hphi;;;
-        +half +hphi -hpsi; -hphi -hpsi +half; -hpsi -half +hphi;;;
-        +half -hphi +hpsi; +hphi -hpsi +half; +hpsi -half +hphi;;;
-        +half -hphi +hpsi; -hphi +hpsi -half; -hpsi +half -hphi;;;
-        +half -hphi -hpsi; +hphi -hpsi -half; -hpsi +half +hphi;;;
-        +half -hphi -hpsi; -hphi +hpsi +half; +hpsi -half -hphi;;;
-        -half +hphi +hpsi; +hphi -hpsi -half; +hpsi -half -hphi;;;
-        -half +hphi +hpsi; -hphi +hpsi +half; -hpsi +half +hphi;;;
-        -half +hphi -hpsi; +hphi -hpsi +half; -hpsi +half -hphi;;;
-        -half +hphi -hpsi; -hphi +hpsi -half; +hpsi -half +hphi;;;
-        -half -hphi +hpsi; +hphi +hpsi -half; -hpsi -half +hphi;;;
-        -half -hphi +hpsi; -hphi -hpsi +half; +hpsi +half -hphi;;;
-        -half -hphi -hpsi; +hphi +hpsi +half; +hpsi +half +hphi;;;
-        -half -hphi -hpsi; -hphi -hpsi -half; -hpsi -half -hphi;;;
-        +hphi +hpsi +half; +hpsi +half +hphi; -half -hphi -hpsi;;;
-        +hphi +hpsi +half; -hpsi -half -hphi; +half +hphi +hpsi;;;
-        +hphi +hpsi -half; +hpsi +half -hphi; +half +hphi -hpsi;;;
-        +hphi +hpsi -half; -hpsi -half +hphi; -half -hphi +hpsi;;;
-        +hphi -hpsi +half; +hpsi -half +hphi; +half -hphi +hpsi;;;
-        +hphi -hpsi +half; -hpsi +half -hphi; -half +hphi -hpsi;;;
-        +hphi -hpsi -half; +hpsi -half -hphi; -half +hphi +hpsi;;;
-        +hphi -hpsi -half; -hpsi +half +hphi; +half -hphi -hpsi;;;
-        -hphi +hpsi +half; +hpsi -half -hphi; +half -hphi -hpsi;;;
-        -hphi +hpsi +half; -hpsi +half +hphi; -half +hphi +hpsi;;;
-        -hphi +hpsi -half; +hpsi -half +hphi; -half +hphi -hpsi;;;
-        -hphi +hpsi -half; -hpsi +half -hphi; +half -hphi +hpsi;;;
-        -hphi -hpsi +half; +hpsi +half -hphi; -half -hphi +hpsi;;;
-        -hphi -hpsi +half; -hpsi -half +hphi; +half +hphi -hpsi;;;
-        -hphi -hpsi -half; +hpsi +half +hphi; +half +hphi +hpsi;;;
-        -hphi -hpsi -half; -hpsi -half -hphi; -half -hphi -hpsi;;;
-        +hpsi +half +hphi; +half +hphi +hpsi; -hphi -hpsi -half;;;
-        +hpsi +half +hphi; -half -hphi -hpsi; +hphi +hpsi +half;;;
-        +hpsi +half -hphi; +half +hphi -hpsi; +hphi +hpsi -half;;;
-        +hpsi +half -hphi; -half -hphi +hpsi; -hphi -hpsi +half;;;
-        +hpsi -half +hphi; +half -hphi +hpsi; +hphi -hpsi +half;;;
-        +hpsi -half +hphi; -half +hphi -hpsi; -hphi +hpsi -half;;;
-        +hpsi -half -hphi; +half -hphi -hpsi; -hphi +hpsi +half;;;
-        +hpsi -half -hphi; -half +hphi +hpsi; +hphi -hpsi -half;;;
-        -hpsi +half +hphi; +half -hphi -hpsi; +hphi -hpsi -half;;;
-        -hpsi +half +hphi; -half +hphi +hpsi; -hphi +hpsi +half;;;
-        -hpsi +half -hphi; +half -hphi +hpsi; -hphi +hpsi -half;;;
-        -hpsi +half -hphi; -half +hphi -hpsi; +hphi -hpsi +half;;;
-        -hpsi -half +hphi; +half +hphi -hpsi; -hphi -hpsi +half;;;
-        -hpsi -half +hphi; -half -hphi +hpsi; +hphi +hpsi -half;;;
-        -hpsi -half -hphi; +half +hphi +hpsi; +hphi +hpsi +half;;;
-        -hpsi -half -hphi; -half -hphi -hpsi; -hphi -hpsi -half
+        +h +a +b; +a +b +h; -b -h -a;;;
+        +h +a +b; -a -b -h; +b +h +a;;;
+        +h +a -b; +a +b -h; +b +h -a;;;
+        +h +a -b; -a -b +h; -b -h +a;;;
+        +h -a +b; +a -b +h; +b -h +a;;;
+        +h -a +b; -a +b -h; -b +h -a;;;
+        +h -a -b; +a -b -h; -b +h +a;;;
+        +h -a -b; -a +b +h; +b -h -a;;;
+        -h +a +b; +a -b -h; +b -h -a;;;
+        -h +a +b; -a +b +h; -b +h +a;;;
+        -h +a -b; +a -b +h; -b +h -a;;;
+        -h +a -b; -a +b -h; +b -h +a;;;
+        -h -a +b; +a +b -h; -b -h +a;;;
+        -h -a +b; -a -b +h; +b +h -a;;;
+        -h -a -b; +a +b +h; +b +h +a;;;
+        -h -a -b; -a -b -h; -b -h -a;;;
+        +a +b +h; +b +h +a; -h -a -b;;;
+        +a +b +h; -b -h -a; +h +a +b;;;
+        +a +b -h; +b +h -a; +h +a -b;;;
+        +a +b -h; -b -h +a; -h -a +b;;;
+        +a -b +h; +b -h +a; +h -a +b;;;
+        +a -b +h; -b +h -a; -h +a -b;;;
+        +a -b -h; +b -h -a; -h +a +b;;;
+        +a -b -h; -b +h +a; +h -a -b;;;
+        -a +b +h; +b -h -a; +h -a -b;;;
+        -a +b +h; -b +h +a; -h +a +b;;;
+        -a +b -h; +b -h +a; -h +a -b;;;
+        -a +b -h; -b +h -a; +h -a +b;;;
+        -a -b +h; +b +h -a; -h -a +b;;;
+        -a -b +h; -b -h +a; +h +a -b;;;
+        -a -b -h; +b +h +a; +h +a +b;;;
+        -a -b -h; -b -h -a; -h -a -b;;;
+        +b +h +a; +h +a +b; -a -b -h;;;
+        +b +h +a; -h -a -b; +a +b +h;;;
+        +b +h -a; +h +a -b; +a +b -h;;;
+        +b +h -a; -h -a +b; -a -b +h;;;
+        +b -h +a; +h -a +b; +a -b +h;;;
+        +b -h +a; -h +a -b; -a +b -h;;;
+        +b -h -a; +h -a -b; -a +b +h;;;
+        +b -h -a; -h +a +b; +a -b -h;;;
+        -b +h +a; +h -a -b; +a -b -h;;;
+        -b +h +a; -h +a +b; -a +b +h;;;
+        -b +h -a; +h -a +b; -a +b -h;;;
+        -b +h -a; -h +a -b; +a -b +h;;;
+        -b -h +a; +h +a -b; -a -b +h;;;
+        -b -h +a; -h -a +b; +a +b -h;;;
+        -b -h -a; +h +a +b; +a +b +h;;;
+        -b -h -a; -h -a -b; -a -b -h
     ]
 end
 
@@ -91,18 +91,18 @@ end
     _four = _two + _two
     _five = _four + _one
     _sqrt_five = sqrt(_five)
-    half = inv(_two)
-    hphi = (_one + _sqrt_five) / _four # half of the golden ratio
-    hpsi = (_one - _sqrt_five) / _four # half of the golden ratio conjugate
-    hx = half * x
-    hy = half * y
-    hz = half * z
-    ax = hphi * x
-    ay = hphi * y
-    az = hphi * z
-    bx = hpsi * x
-    by = hpsi * y
-    bz = hpsi * z
+    h = inv(_two)
+    a = (_one + _sqrt_five) / _four # half of the golden ratio
+    b = (_one - _sqrt_five) / _four # half of the golden ratio conjugate
+    hx = h * x
+    hy = h * y
+    hz = h * z
+    ax = a * x
+    ay = a * y
+    az = a * z
+    bx = b * x
+    by = b * y
+    bz = b * z
     return SA{T}[
         +x; +y; +z;;
         +x; -y; -z;;
@@ -175,9 +175,9 @@ end
     _four = _two + _two
     _five = _four + _one
     _sqrt_five = sqrt(_five)
-    half = inv(_two)
-    hphi = (_one + _sqrt_five) / _four # half of the golden ratio
-    hpsi = (_one - _sqrt_five) / _four # half of the golden ratio conjugate
+    h = inv(_two)
+    a = (_one + _sqrt_five) / _four # half of the golden ratio
+    b = (_one - _sqrt_five) / _four # half of the golden ratio conjugate
     return SA{T}[
         +_one _zero _zero; _zero +_one _zero; _zero _zero +_one;;;
         +_one _zero _zero; _zero +_one _zero; _zero _zero -_one;;;
@@ -203,102 +203,102 @@ end
         _zero _zero -_one; +_one _zero _zero; _zero -_one _zero;;;
         _zero _zero -_one; -_one _zero _zero; _zero +_one _zero;;;
         _zero _zero -_one; -_one _zero _zero; _zero -_one _zero;;;
-        +half +hphi +hpsi; +hphi +hpsi +half; +hpsi +half +hphi;;;
-        +half +hphi +hpsi; +hphi +hpsi +half; -hpsi -half -hphi;;;
-        +half +hphi +hpsi; -hphi -hpsi -half; +hpsi +half +hphi;;;
-        +half +hphi +hpsi; -hphi -hpsi -half; -hpsi -half -hphi;;;
-        +half +hphi -hpsi; +hphi +hpsi -half; +hpsi +half -hphi;;;
-        +half +hphi -hpsi; +hphi +hpsi -half; -hpsi -half +hphi;;;
-        +half +hphi -hpsi; -hphi -hpsi +half; +hpsi +half -hphi;;;
-        +half +hphi -hpsi; -hphi -hpsi +half; -hpsi -half +hphi;;;
-        +half -hphi +hpsi; +hphi -hpsi +half; +hpsi -half +hphi;;;
-        +half -hphi +hpsi; +hphi -hpsi +half; -hpsi +half -hphi;;;
-        +half -hphi +hpsi; -hphi +hpsi -half; +hpsi -half +hphi;;;
-        +half -hphi +hpsi; -hphi +hpsi -half; -hpsi +half -hphi;;;
-        +half -hphi -hpsi; +hphi -hpsi -half; +hpsi -half -hphi;;;
-        +half -hphi -hpsi; +hphi -hpsi -half; -hpsi +half +hphi;;;
-        +half -hphi -hpsi; -hphi +hpsi +half; +hpsi -half -hphi;;;
-        +half -hphi -hpsi; -hphi +hpsi +half; -hpsi +half +hphi;;;
-        -half +hphi +hpsi; +hphi -hpsi -half; +hpsi -half -hphi;;;
-        -half +hphi +hpsi; +hphi -hpsi -half; -hpsi +half +hphi;;;
-        -half +hphi +hpsi; -hphi +hpsi +half; +hpsi -half -hphi;;;
-        -half +hphi +hpsi; -hphi +hpsi +half; -hpsi +half +hphi;;;
-        -half +hphi -hpsi; +hphi -hpsi +half; +hpsi -half +hphi;;;
-        -half +hphi -hpsi; +hphi -hpsi +half; -hpsi +half -hphi;;;
-        -half +hphi -hpsi; -hphi +hpsi -half; +hpsi -half +hphi;;;
-        -half +hphi -hpsi; -hphi +hpsi -half; -hpsi +half -hphi;;;
-        -half -hphi +hpsi; +hphi +hpsi -half; +hpsi +half -hphi;;;
-        -half -hphi +hpsi; +hphi +hpsi -half; -hpsi -half +hphi;;;
-        -half -hphi +hpsi; -hphi -hpsi +half; +hpsi +half -hphi;;;
-        -half -hphi +hpsi; -hphi -hpsi +half; -hpsi -half +hphi;;;
-        -half -hphi -hpsi; +hphi +hpsi +half; +hpsi +half +hphi;;;
-        -half -hphi -hpsi; +hphi +hpsi +half; -hpsi -half -hphi;;;
-        -half -hphi -hpsi; -hphi -hpsi -half; +hpsi +half +hphi;;;
-        -half -hphi -hpsi; -hphi -hpsi -half; -hpsi -half -hphi;;;
-        +hphi +hpsi +half; +hpsi +half +hphi; +half +hphi +hpsi;;;
-        +hphi +hpsi +half; +hpsi +half +hphi; -half -hphi -hpsi;;;
-        +hphi +hpsi +half; -hpsi -half -hphi; +half +hphi +hpsi;;;
-        +hphi +hpsi +half; -hpsi -half -hphi; -half -hphi -hpsi;;;
-        +hphi +hpsi -half; +hpsi +half -hphi; +half +hphi -hpsi;;;
-        +hphi +hpsi -half; +hpsi +half -hphi; -half -hphi +hpsi;;;
-        +hphi +hpsi -half; -hpsi -half +hphi; +half +hphi -hpsi;;;
-        +hphi +hpsi -half; -hpsi -half +hphi; -half -hphi +hpsi;;;
-        +hphi -hpsi +half; +hpsi -half +hphi; +half -hphi +hpsi;;;
-        +hphi -hpsi +half; +hpsi -half +hphi; -half +hphi -hpsi;;;
-        +hphi -hpsi +half; -hpsi +half -hphi; +half -hphi +hpsi;;;
-        +hphi -hpsi +half; -hpsi +half -hphi; -half +hphi -hpsi;;;
-        +hphi -hpsi -half; +hpsi -half -hphi; +half -hphi -hpsi;;;
-        +hphi -hpsi -half; +hpsi -half -hphi; -half +hphi +hpsi;;;
-        +hphi -hpsi -half; -hpsi +half +hphi; +half -hphi -hpsi;;;
-        +hphi -hpsi -half; -hpsi +half +hphi; -half +hphi +hpsi;;;
-        -hphi +hpsi +half; +hpsi -half -hphi; +half -hphi -hpsi;;;
-        -hphi +hpsi +half; +hpsi -half -hphi; -half +hphi +hpsi;;;
-        -hphi +hpsi +half; -hpsi +half +hphi; +half -hphi -hpsi;;;
-        -hphi +hpsi +half; -hpsi +half +hphi; -half +hphi +hpsi;;;
-        -hphi +hpsi -half; +hpsi -half +hphi; +half -hphi +hpsi;;;
-        -hphi +hpsi -half; +hpsi -half +hphi; -half +hphi -hpsi;;;
-        -hphi +hpsi -half; -hpsi +half -hphi; +half -hphi +hpsi;;;
-        -hphi +hpsi -half; -hpsi +half -hphi; -half +hphi -hpsi;;;
-        -hphi -hpsi +half; +hpsi +half -hphi; +half +hphi -hpsi;;;
-        -hphi -hpsi +half; +hpsi +half -hphi; -half -hphi +hpsi;;;
-        -hphi -hpsi +half; -hpsi -half +hphi; +half +hphi -hpsi;;;
-        -hphi -hpsi +half; -hpsi -half +hphi; -half -hphi +hpsi;;;
-        -hphi -hpsi -half; +hpsi +half +hphi; +half +hphi +hpsi;;;
-        -hphi -hpsi -half; +hpsi +half +hphi; -half -hphi -hpsi;;;
-        -hphi -hpsi -half; -hpsi -half -hphi; +half +hphi +hpsi;;;
-        -hphi -hpsi -half; -hpsi -half -hphi; -half -hphi -hpsi;;;
-        +hpsi +half +hphi; +half +hphi +hpsi; +hphi +hpsi +half;;;
-        +hpsi +half +hphi; +half +hphi +hpsi; -hphi -hpsi -half;;;
-        +hpsi +half +hphi; -half -hphi -hpsi; +hphi +hpsi +half;;;
-        +hpsi +half +hphi; -half -hphi -hpsi; -hphi -hpsi -half;;;
-        +hpsi +half -hphi; +half +hphi -hpsi; +hphi +hpsi -half;;;
-        +hpsi +half -hphi; +half +hphi -hpsi; -hphi -hpsi +half;;;
-        +hpsi +half -hphi; -half -hphi +hpsi; +hphi +hpsi -half;;;
-        +hpsi +half -hphi; -half -hphi +hpsi; -hphi -hpsi +half;;;
-        +hpsi -half +hphi; +half -hphi +hpsi; +hphi -hpsi +half;;;
-        +hpsi -half +hphi; +half -hphi +hpsi; -hphi +hpsi -half;;;
-        +hpsi -half +hphi; -half +hphi -hpsi; +hphi -hpsi +half;;;
-        +hpsi -half +hphi; -half +hphi -hpsi; -hphi +hpsi -half;;;
-        +hpsi -half -hphi; +half -hphi -hpsi; +hphi -hpsi -half;;;
-        +hpsi -half -hphi; +half -hphi -hpsi; -hphi +hpsi +half;;;
-        +hpsi -half -hphi; -half +hphi +hpsi; +hphi -hpsi -half;;;
-        +hpsi -half -hphi; -half +hphi +hpsi; -hphi +hpsi +half;;;
-        -hpsi +half +hphi; +half -hphi -hpsi; +hphi -hpsi -half;;;
-        -hpsi +half +hphi; +half -hphi -hpsi; -hphi +hpsi +half;;;
-        -hpsi +half +hphi; -half +hphi +hpsi; +hphi -hpsi -half;;;
-        -hpsi +half +hphi; -half +hphi +hpsi; -hphi +hpsi +half;;;
-        -hpsi +half -hphi; +half -hphi +hpsi; +hphi -hpsi +half;;;
-        -hpsi +half -hphi; +half -hphi +hpsi; -hphi +hpsi -half;;;
-        -hpsi +half -hphi; -half +hphi -hpsi; +hphi -hpsi +half;;;
-        -hpsi +half -hphi; -half +hphi -hpsi; -hphi +hpsi -half;;;
-        -hpsi -half +hphi; +half +hphi -hpsi; +hphi +hpsi -half;;;
-        -hpsi -half +hphi; +half +hphi -hpsi; -hphi -hpsi +half;;;
-        -hpsi -half +hphi; -half -hphi +hpsi; +hphi +hpsi -half;;;
-        -hpsi -half +hphi; -half -hphi +hpsi; -hphi -hpsi +half;;;
-        -hpsi -half -hphi; +half +hphi +hpsi; +hphi +hpsi +half;;;
-        -hpsi -half -hphi; +half +hphi +hpsi; -hphi -hpsi -half;;;
-        -hpsi -half -hphi; -half -hphi -hpsi; +hphi +hpsi +half;;;
-        -hpsi -half -hphi; -half -hphi -hpsi; -hphi -hpsi -half
+        +h +a +b; +a +b +h; +b +h +a;;;
+        +h +a +b; +a +b +h; -b -h -a;;;
+        +h +a +b; -a -b -h; +b +h +a;;;
+        +h +a +b; -a -b -h; -b -h -a;;;
+        +h +a -b; +a +b -h; +b +h -a;;;
+        +h +a -b; +a +b -h; -b -h +a;;;
+        +h +a -b; -a -b +h; +b +h -a;;;
+        +h +a -b; -a -b +h; -b -h +a;;;
+        +h -a +b; +a -b +h; +b -h +a;;;
+        +h -a +b; +a -b +h; -b +h -a;;;
+        +h -a +b; -a +b -h; +b -h +a;;;
+        +h -a +b; -a +b -h; -b +h -a;;;
+        +h -a -b; +a -b -h; +b -h -a;;;
+        +h -a -b; +a -b -h; -b +h +a;;;
+        +h -a -b; -a +b +h; +b -h -a;;;
+        +h -a -b; -a +b +h; -b +h +a;;;
+        -h +a +b; +a -b -h; +b -h -a;;;
+        -h +a +b; +a -b -h; -b +h +a;;;
+        -h +a +b; -a +b +h; +b -h -a;;;
+        -h +a +b; -a +b +h; -b +h +a;;;
+        -h +a -b; +a -b +h; +b -h +a;;;
+        -h +a -b; +a -b +h; -b +h -a;;;
+        -h +a -b; -a +b -h; +b -h +a;;;
+        -h +a -b; -a +b -h; -b +h -a;;;
+        -h -a +b; +a +b -h; +b +h -a;;;
+        -h -a +b; +a +b -h; -b -h +a;;;
+        -h -a +b; -a -b +h; +b +h -a;;;
+        -h -a +b; -a -b +h; -b -h +a;;;
+        -h -a -b; +a +b +h; +b +h +a;;;
+        -h -a -b; +a +b +h; -b -h -a;;;
+        -h -a -b; -a -b -h; +b +h +a;;;
+        -h -a -b; -a -b -h; -b -h -a;;;
+        +a +b +h; +b +h +a; +h +a +b;;;
+        +a +b +h; +b +h +a; -h -a -b;;;
+        +a +b +h; -b -h -a; +h +a +b;;;
+        +a +b +h; -b -h -a; -h -a -b;;;
+        +a +b -h; +b +h -a; +h +a -b;;;
+        +a +b -h; +b +h -a; -h -a +b;;;
+        +a +b -h; -b -h +a; +h +a -b;;;
+        +a +b -h; -b -h +a; -h -a +b;;;
+        +a -b +h; +b -h +a; +h -a +b;;;
+        +a -b +h; +b -h +a; -h +a -b;;;
+        +a -b +h; -b +h -a; +h -a +b;;;
+        +a -b +h; -b +h -a; -h +a -b;;;
+        +a -b -h; +b -h -a; +h -a -b;;;
+        +a -b -h; +b -h -a; -h +a +b;;;
+        +a -b -h; -b +h +a; +h -a -b;;;
+        +a -b -h; -b +h +a; -h +a +b;;;
+        -a +b +h; +b -h -a; +h -a -b;;;
+        -a +b +h; +b -h -a; -h +a +b;;;
+        -a +b +h; -b +h +a; +h -a -b;;;
+        -a +b +h; -b +h +a; -h +a +b;;;
+        -a +b -h; +b -h +a; +h -a +b;;;
+        -a +b -h; +b -h +a; -h +a -b;;;
+        -a +b -h; -b +h -a; +h -a +b;;;
+        -a +b -h; -b +h -a; -h +a -b;;;
+        -a -b +h; +b +h -a; +h +a -b;;;
+        -a -b +h; +b +h -a; -h -a +b;;;
+        -a -b +h; -b -h +a; +h +a -b;;;
+        -a -b +h; -b -h +a; -h -a +b;;;
+        -a -b -h; +b +h +a; +h +a +b;;;
+        -a -b -h; +b +h +a; -h -a -b;;;
+        -a -b -h; -b -h -a; +h +a +b;;;
+        -a -b -h; -b -h -a; -h -a -b;;;
+        +b +h +a; +h +a +b; +a +b +h;;;
+        +b +h +a; +h +a +b; -a -b -h;;;
+        +b +h +a; -h -a -b; +a +b +h;;;
+        +b +h +a; -h -a -b; -a -b -h;;;
+        +b +h -a; +h +a -b; +a +b -h;;;
+        +b +h -a; +h +a -b; -a -b +h;;;
+        +b +h -a; -h -a +b; +a +b -h;;;
+        +b +h -a; -h -a +b; -a -b +h;;;
+        +b -h +a; +h -a +b; +a -b +h;;;
+        +b -h +a; +h -a +b; -a +b -h;;;
+        +b -h +a; -h +a -b; +a -b +h;;;
+        +b -h +a; -h +a -b; -a +b -h;;;
+        +b -h -a; +h -a -b; +a -b -h;;;
+        +b -h -a; +h -a -b; -a +b +h;;;
+        +b -h -a; -h +a +b; +a -b -h;;;
+        +b -h -a; -h +a +b; -a +b +h;;;
+        -b +h +a; +h -a -b; +a -b -h;;;
+        -b +h +a; +h -a -b; -a +b +h;;;
+        -b +h +a; -h +a +b; +a -b -h;;;
+        -b +h +a; -h +a +b; -a +b +h;;;
+        -b +h -a; +h -a +b; +a -b +h;;;
+        -b +h -a; +h -a +b; -a +b -h;;;
+        -b +h -a; -h +a -b; +a -b +h;;;
+        -b +h -a; -h +a -b; -a +b -h;;;
+        -b -h +a; +h +a -b; +a +b -h;;;
+        -b -h +a; +h +a -b; -a -b +h;;;
+        -b -h +a; -h -a +b; +a +b -h;;;
+        -b -h +a; -h -a +b; -a -b +h;;;
+        -b -h -a; +h +a +b; +a +b +h;;;
+        -b -h -a; +h +a +b; -a -b -h;;;
+        -b -h -a; -h -a -b; +a +b +h;;;
+        -b -h -a; -h -a -b; -a -b -h
     ]
 end
 
@@ -309,18 +309,18 @@ end
     _four = _two + _two
     _five = _four + _one
     _sqrt_five = sqrt(_five)
-    half = inv(_two)
-    hphi = (_one + _sqrt_five) / _four # half of the golden ratio
-    hpsi = (_one - _sqrt_five) / _four # half of the golden ratio conjugate
-    hx = half * x
-    hy = half * y
-    hz = half * z
-    ax = hphi * x
-    ay = hphi * y
-    az = hphi * z
-    bx = hpsi * x
-    by = hpsi * y
-    bz = hpsi * z
+    h = inv(_two)
+    a = (_one + _sqrt_five) / _four # half of the golden ratio
+    b = (_one - _sqrt_five) / _four # half of the golden ratio conjugate
+    hx = h * x
+    hy = h * y
+    hz = h * z
+    ax = a * x
+    ay = a * y
+    az = a * z
+    bx = b * x
+    by = b * y
+    bz = b * z
     return SA{T}[
         +x; +y; +z;;
         +x; +y; -z;;
@@ -480,9 +480,9 @@ end
     _four = _two + _two
     _five = _four + _one
     _sqrt_five = sqrt(_five)
-    half = inv(_two)
-    hphi = (_one + _sqrt_five) / _four # half of the golden ratio
-    hpsi = (_one - _sqrt_five) / _four # half of the golden ratio conjugate
+    h = inv(_two)
+    a = (_one + _sqrt_five) / _four # half of the golden ratio
+    b = (_one - _sqrt_five) / _four # half of the golden ratio conjugate
     return SA{T}[
         +_one; _zero; _zero;;
         -_one; _zero; _zero;;
@@ -490,30 +490,30 @@ end
         _zero; -_one; _zero;;
         _zero; _zero; +_one;;
         _zero; _zero; -_one;;
-        +half; +hphi; +hpsi;;
-        +half; +hphi; -hpsi;;
-        +half; -hphi; +hpsi;;
-        +half; -hphi; -hpsi;;
-        -half; +hphi; +hpsi;;
-        -half; +hphi; -hpsi;;
-        -half; -hphi; +hpsi;;
-        -half; -hphi; -hpsi;;
-        +hphi; +hpsi; +half;;
-        +hphi; +hpsi; -half;;
-        +hphi; -hpsi; +half;;
-        +hphi; -hpsi; -half;;
-        -hphi; +hpsi; +half;;
-        -hphi; +hpsi; -half;;
-        -hphi; -hpsi; +half;;
-        -hphi; -hpsi; -half;;
-        +hpsi; +half; +hphi;;
-        +hpsi; +half; -hphi;;
-        +hpsi; -half; +hphi;;
-        +hpsi; -half; -hphi;;
-        -hpsi; +half; +hphi;;
-        -hpsi; +half; -hphi;;
-        -hpsi; -half; +hphi;;
-        -hpsi; -half; -hphi
+        +h; +a; +b;;
+        +h; +a; -b;;
+        +h; -a; +b;;
+        +h; -a; -b;;
+        -h; +a; +b;;
+        -h; +a; -b;;
+        -h; -a; +b;;
+        -h; -a; -b;;
+        +a; +b; +h;;
+        +a; +b; -h;;
+        +a; -b; +h;;
+        +a; -b; -h;;
+        -a; +b; +h;;
+        -a; +b; -h;;
+        -a; -b; +h;;
+        -a; -b; -h;;
+        +b; +h; +a;;
+        +b; +h; -a;;
+        +b; -h; +a;;
+        +b; -h; -a;;
+        -b; +h; +a;;
+        -b; +h; -a;;
+        -b; -h; +a;;
+        -b; -h; -a
     ]
 end
 
@@ -528,8 +528,8 @@ end
     _six = _four + _two
     _sqrt_five = sqrt(_five)
     t = inv(sqrt(_three))
-    c = sqrt((_three + _sqrt_five) / _six)
-    d = sqrt((_three - _sqrt_five) / _six)
+    a = sqrt((_three + _sqrt_five) / _six)
+    b = sqrt((_three - _sqrt_five) / _six)
     return SA{T}[
         +t; +t; +t;;
         +t; +t; -t;;
@@ -539,18 +539,18 @@ end
         -t; +t; -t;;
         -t; -t; +t;;
         -t; -t; -t;;
-        _zero; +d; +c;;
-        _zero; +d; -c;;
-        _zero; -d; +c;;
-        _zero; -d; -c;;
-        +c; _zero; +d;;
-        +c; _zero; -d;;
-        -c; _zero; +d;;
-        -c; _zero; -d;;
-        +d; +c; _zero;;
-        +d; -c; _zero;;
-        -d; +c; _zero;;
-        -d; -c; _zero
+        _zero; +b; +a;;
+        _zero; +b; -a;;
+        _zero; -b; +a;;
+        _zero; -b; -a;;
+        +a; _zero; +b;;
+        +a; _zero; -b;;
+        -a; _zero; +b;;
+        -a; _zero; -b;;
+        +b; +a; _zero;;
+        +b; -a; _zero;;
+        -b; +a; _zero;;
+        -b; -a; _zero
     ]
 end
 
