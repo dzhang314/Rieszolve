@@ -454,21 +454,21 @@ end
     _five = _four + _one
     _ten = _five + _five
     _sqrt_five = sqrt(_five)
-    a = sqrt((_five + _sqrt_five) / _ten)
-    b = sqrt((_five - _sqrt_five) / _ten)
+    c = sqrt((_five + _sqrt_five) / _ten)
+    d = sqrt((_five - _sqrt_five) / _ten)
     return SA{T}[
-        _zero; +a; +b;;
-        _zero; +a; -b;;
-        _zero; -a; +b;;
-        _zero; -a; -b;;
-        +b; _zero; +a;;
-        +b; _zero; -a;;
-        -b; _zero; +a;;
-        -b; _zero; -a;;
-        +a; +b; _zero;;
-        +a; -b; _zero;;
-        -a; +b; _zero;;
-        -a; -b; _zero
+        _zero; +c; +d;;
+        _zero; +c; -d;;
+        _zero; -c; +d;;
+        _zero; -c; -d;;
+        +d; _zero; +c;;
+        +d; _zero; -c;;
+        -d; _zero; +c;;
+        -d; _zero; -c;;
+        +c; +d; _zero;;
+        +c; -d; _zero;;
+        -c; +d; _zero;;
+        -c; -d; _zero
     ]
 end
 
@@ -528,8 +528,8 @@ end
     _six = _four + _two
     _sqrt_five = sqrt(_five)
     t = inv(sqrt(_three))
-    a = sqrt((_three + _sqrt_five) / _six)
-    b = sqrt((_three - _sqrt_five) / _six)
+    e = sqrt((_three + _sqrt_five) / _six)
+    f = sqrt((_three - _sqrt_five) / _six)
     return SA{T}[
         +t; +t; +t;;
         +t; +t; -t;;
@@ -539,18 +539,18 @@ end
         -t; +t; -t;;
         -t; -t; +t;;
         -t; -t; -t;;
-        _zero; +b; +a;;
-        _zero; +b; -a;;
-        _zero; -b; +a;;
-        _zero; -b; -a;;
-        +a; _zero; +b;;
-        +a; _zero; -b;;
-        -a; _zero; +b;;
-        -a; _zero; -b;;
-        +b; +a; _zero;;
-        +b; -a; _zero;;
-        -b; +a; _zero;;
-        -b; -a; _zero
+        _zero; +f; +e;;
+        _zero; +f; -e;;
+        _zero; -f; +e;;
+        _zero; -f; -e;;
+        +e; _zero; +f;;
+        +e; _zero; -f;;
+        -e; _zero; +f;;
+        -e; _zero; -f;;
+        +f; +e; _zero;;
+        +f; -e; _zero;;
+        -f; +e; _zero;;
+        -f; -e; _zero
     ]
 end
 
